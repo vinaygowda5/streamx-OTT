@@ -4,17 +4,25 @@ import Home    from "./Home.jsx";
 import Profile from "./Profile.jsx";
 import Admin   from "./Admin.jsx";
 
+// ── Admin emails - only these can see admin panel ──
+const ADMIN_EMAILS = [
+  "admin@streamx.in",
+  "vinaygowda12096909@email.com"  // your email
+];
+
 export default function App() {
   const [user, setUser]   = useState(null);
   const [page, setPage]   = useState("home");
   const [ready, setReady] = useState(false);
 
-  // Check if already logged in
   useEffect(() => {
     const saved = localStorage.getItem("streamx_user");
     if (saved) setUser(JSON.parse(saved));
     setReady(true);
   }, []);
+
+  // Check if current user is admin
+  const isAdmin = user && ADMIN_EMAILS.includes(user.email);
 
   function handleLogin(userData) {
     setUser(userData);
@@ -28,7 +36,6 @@ export default function App() {
     setPage("home");
   }
 
-  // Wait for localStorage check
   if (!ready) return (
     <div style={{
       minHeight: "100vh", background: "#07070c",
@@ -40,8 +47,31 @@ export default function App() {
     </div>
   );
 
-  // Show login if not logged in
   if (!user) return <Login onLogin={handleLogin} />;
+
+  // Block non-admin from admin page
+  if (page === "admin" && !isAdmin) {
+    return (
+      <div style={{
+        minHeight: "100vh", background: "#07070c",
+        display: "flex", alignItems: "center",
+        justifyContent: "center", flexDirection: "column", gap: 20
+      }}>
+        <div style={{ fontSize: 64 }}>🚫</div>
+        <div style={{ color: "#e50914", fontSize: 24, fontWeight: 900 }}>
+          Access Denied
+        </div>
+        <div style={{ color: "#666", fontSize: 14 }}>
+          You don't have admin permissions.
+        </div>
+        <button onClick={() => setPage("home")} style={{
+          background: "#e50914", color: "#fff", border: "none",
+          borderRadius: 8, padding: "12px 28px",
+          fontWeight: 700, fontSize: 14, cursor: "pointer"
+        }}>Go Back Home</button>
+      </div>
+    );
+  }
 
   return (
     <div style={{ minHeight: "100vh", background: "#07070c" }}>
@@ -62,7 +92,8 @@ export default function App() {
         {[
           { id:"home",    icon:"🏠", label:"Home"    },
           { id:"profile", icon:"👤", label:"Profile" },
-          { id:"admin",   icon:"⚡", label:"Admin"   },
+          // Only show Admin button to admins
+          ...(isAdmin ? [{ id:"admin", icon:"⚡", label:"Admin" }] : []),
         ].map(n => (
           <button key={n.id} onClick={() => setPage(n.id)} style={{
             background: "none", border: "none", cursor: "pointer",
