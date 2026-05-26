@@ -1,8 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-
-/* ─────────────────────────────────────────────
-   StreamX · Jio Hotstar-style Home
-───────────────────────────────────────────── */
+import Search from "./Search.jsx";
 
 const G = `
 @import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Manrope:wght@300;400;500;600;700;800&display=swap');
@@ -31,7 +28,6 @@ body{background:#0a0a0f;color:#fff;font-family:'Manrope',sans-serif;overflow-x:h
 .nav-btn:hover{color:#fff;}
 `;
 
-/* ── DATA ───────────────────────────────────── */
 const HERO_ITEMS = [
   {
     id:1, title:"Apex Protocol", subtitle:"Action · Thriller · 2026",
@@ -71,9 +67,7 @@ const HERO_ITEMS = [
   },
 ];
 
-const CATEGORIES = [
-  "For You","Live","Movies","Series","Sports","News","Kids","Premium",
-];
+const CATEGORIES = ["For You","Live","Movies","Series","Sports","News","Kids","Premium"];
 
 const CONTENT_ROWS = [
   {
@@ -164,20 +158,16 @@ const CONTENT_ROWS = [
 
 const LANG_PILLS = ["All","Hindi","English","Tamil","Telugu","Bengali","Kannada","Malayalam"];
 
-/* ── HELPERS ───────────────────────────────── */
 function useInterval(cb, ms) {
   const r = useRef(cb);
   useEffect(()=>{r.current=cb;},[cb]);
   useEffect(()=>{ if(!ms)return; const id=setInterval(()=>r.current(),ms); return()=>clearInterval(id); },[ms]);
 }
 
-/* ── HERO ───────────────────────────────────── */
 function HeroSection({ onPlay }) {
   const [idx, setIdx] = useState(0);
-  const [loaded, setLoaded] = useState(false);
   const [animKey, setAnimKey] = useState(0);
 
-  useEffect(()=>{ setTimeout(()=>setLoaded(true),400); },[]);
   useInterval(()=>{ setIdx(i=>(i+1)%HERO_ITEMS.length); setAnimKey(k=>k+1); }, 6500);
 
   const h = HERO_ITEMS[idx];
@@ -187,26 +177,21 @@ function HeroSection({ onPlay }) {
 
   return (
     <div style={{ position:"relative", height:"100vh", minHeight:560, maxHeight:780, overflow:"hidden", background:h.bg, transition:"background 0.8s ease" }}>
-      {/* Giant emoji BG art */}
       <div style={{
         position:"absolute", right:"-2%", top:"50%", transform:"translateY(-52%)",
         fontSize:"clamp(280px,38vw,520px)", opacity:0.07, zIndex:0, userSelect:"none",
-        filter:"blur(1px)",
-        transition:"all 0.8s ease",
+        filter:"blur(1px)", transition:"all 0.8s ease",
       }}>{h.emoji}</div>
 
-      {/* Gradient overlays */}
       <div style={{ position:"absolute", inset:0, background:h.grad, zIndex:1 }}/>
       <div style={{ position:"absolute", bottom:0, left:0, right:0, height:"55%", background:"linear-gradient(to top,#0a0a0f 0%,transparent 100%)", zIndex:2 }}/>
       <div style={{ position:"absolute", top:0, left:0, right:0, height:"30%", background:"linear-gradient(to bottom,rgba(10,10,15,0.6),transparent)", zIndex:2 }}/>
 
-      {/* Content */}
       <div key={animKey} style={{
         position:"absolute", zIndex:10, left:0, right:0, bottom:0,
         padding:"0 5vw 64px",
         animation:"fadeUp 0.55s ease forwards",
       }}>
-        {/* live / exclusive badge */}
         {h.badge && (
           <div style={{ display:"inline-flex", alignItems:"center", gap:7,
             background: h.badge==="LIVE"?"#e50914": h.badge==="NEW"?"#00c853": h.badge==="EXCLUSIVE"?"#1d9bf0":"#f59e0b",
@@ -219,7 +204,6 @@ function HeroSection({ onPlay }) {
           </div>
         )}
 
-        {/* Title */}
         <div style={{
           fontFamily:"'Bebas Neue',sans-serif",
           fontSize:"clamp(42px,6vw,80px)",
@@ -229,14 +213,12 @@ function HeroSection({ onPlay }) {
           maxWidth:640,
         }}>{h.title}</div>
 
-        {/* Subtitle row */}
         <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:12, flexWrap:"wrap" }}>
           <span style={{ fontSize:13, color:"rgba(255,255,255,0.65)", fontWeight:500 }}>{h.subtitle}</span>
           <span style={{ width:3,height:3,borderRadius:"50%",background:"#555" }}/>
           <span style={{ fontSize:12, color:"rgba(255,255,255,0.4)" }}>{h.lang}</span>
         </div>
 
-        {/* Tags */}
         <div style={{ display:"flex", gap:6, marginBottom:16, flexWrap:"wrap" }}>
           {h.tags.map(t=>(
             <span key={t} style={{ background:"rgba(255,255,255,0.1)", color:"rgba(255,255,255,0.8)", fontSize:10, fontWeight:700, padding:"3px 9px", borderRadius:4, letterSpacing:1, backdropFilter:"blur(8px)", border:"1px solid rgba(255,255,255,0.1)" }}>{t}</span>
@@ -245,10 +227,8 @@ function HeroSection({ onPlay }) {
           {h.score!=="LIVE" && <span style={{ background:"rgba(245,158,11,0.15)", color:"#f59e0b", fontSize:10, fontWeight:700, padding:"3px 9px", borderRadius:4 }}>★ {h.score}</span>}
         </div>
 
-        {/* Description */}
         <div style={{ fontSize:14, color:"rgba(255,255,255,0.55)", maxWidth:480, lineHeight:1.7, marginBottom:28 }}>{h.desc}</div>
 
-        {/* Buttons */}
         <div style={{ display:"flex", gap:12, flexWrap:"wrap" }}>
           <button onClick={()=>onPlay(h)} style={{
             display:"flex", alignItems:"center", gap:10,
@@ -273,11 +253,9 @@ function HeroSection({ onPlay }) {
         </div>
       </div>
 
-      {/* Prev / Next arrows */}
       <button onClick={goPrev} className="nav-btn" style={{ position:"absolute", left:16, top:"50%", transform:"translateY(-50%)", zIndex:20, width:40, height:40, borderRadius:"50%", background:"rgba(0,0,0,0.5)", backdropFilter:"blur(8px)", border:"1px solid rgba(255,255,255,0.1)", display:"flex", alignItems:"center", justifyContent:"center", fontSize:16 }}>‹</button>
       <button onClick={goNext} className="nav-btn" style={{ position:"absolute", right:16, top:"50%", transform:"translateY(-50%)", zIndex:20, width:40, height:40, borderRadius:"50%", background:"rgba(0,0,0,0.5)", backdropFilter:"blur(8px)", border:"1px solid rgba(255,255,255,0.1)", display:"flex", alignItems:"center", justifyContent:"center", fontSize:16 }}>›</button>
 
-      {/* Progress dots */}
       <div style={{ position:"absolute", bottom:20, left:"50%", transform:"translateX(-50%)", zIndex:20, display:"flex", gap:6, alignItems:"center" }}>
         {HERO_ITEMS.map((_,i)=>(
           <div key={i} onClick={()=>{setIdx(i);setAnimKey(k=>k+1);}} style={{
@@ -291,7 +269,6 @@ function HeroSection({ onPlay }) {
   );
 }
 
-/* ── CONTENT CARD VARIANTS ─────────────────── */
 function LiveCard({ item, onClick }) {
   const [h, setH] = useState(false);
   return (
@@ -323,7 +300,6 @@ function ContinueCard({ item, onClick }) {
           <div style={{ width:44, height:44, borderRadius:"50%", background:item.accent, display:"flex", alignItems:"center", justifyContent:"center", fontSize:16 }}>▶</div>
         </div>}
       </div>
-      {/* Progress bar */}
       <div style={{ height:3, background:"#1a1a24" }}>
         <div style={{ height:"100%", width:`${item.progress}%`, background:item.accent, borderRadius:2 }}/>
       </div>
@@ -343,7 +319,6 @@ function RankCard({ item, rank, onClick }) {
   return (
     <div className="card-item" onMouseEnter={()=>setH(true)} onMouseLeave={()=>setH(false)} onClick={()=>onClick(item)}
       style={{ width:150, position:"relative" }}>
-      {/* Rank number watermark */}
       <div style={{
         position:"absolute", bottom:-10, left:-4, zIndex:1,
         fontFamily:"'Bebas Neue',sans-serif", fontSize:96,
@@ -417,7 +392,6 @@ function WideCard({ item, onClick }) {
   );
 }
 
-/* ── ROW COMPONENT ─────────────────────────── */
 function ContentRow({ row, onPlay }) {
   const scrollRef = useRef(null);
   function scroll(dir){ scrollRef.current.scrollBy({ left:dir*340, behavior:"smooth" }); }
@@ -432,7 +406,6 @@ function ContentRow({ row, onPlay }) {
 
   return (
     <div style={{ marginBottom:36 }}>
-      {/* Row header */}
       <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-end", marginBottom:14, padding:"0 4vw" }}>
         <div>
           <div style={{ fontWeight:800, fontSize:17, letterSpacing:0.2 }}>{row.label}</div>
@@ -444,7 +417,6 @@ function ContentRow({ row, onPlay }) {
           <button onClick={()=>scroll(1)} className="nav-btn" style={{ width:28,height:28,borderRadius:"50%",background:"#1a1a24",display:"flex",alignItems:"center",justifyContent:"center",fontSize:14 }}>›</button>
         </div>
       </div>
-      {/* Scrollable strip */}
       <div ref={scrollRef} className="row-scroll" style={{ padding:`0 4vw 10px` }}>
         {row.items.map(renderCard)}
       </div>
@@ -452,10 +424,8 @@ function ContentRow({ row, onPlay }) {
   );
 }
 
-/* ── NAVBAR ─────────────────────────────────── */
-function Navbar({ activeCat, setActiveCat, onSearch, searchVal, onLogoClick }) {
+function Navbar({ activeCat, setActiveCat, onLogoClick, onSearchClick, user, onUpgrade }) {
   const [scrolled, setScrolled] = useState(false);
-  const [searchOpen, setSearchOpen] = useState(false);
   const catRef = useRef(null);
 
   useEffect(()=>{
@@ -472,41 +442,40 @@ function Navbar({ activeCat, setActiveCat, onSearch, searchVal, onLogoClick }) {
       borderBottom:scrolled?"1px solid rgba(255,255,255,0.05)":"none",
       transition:"background 0.3s, backdrop-filter 0.3s",
     }}>
-      {/* Top row */}
       <div style={{ display:"flex", alignItems:"center", gap:20, padding:"0 4vw", height:58 }}>
-        {/* Logo */}
         <div onClick={onLogoClick} style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:28, letterSpacing:2, cursor:"pointer", flexShrink:0, lineHeight:1 }}>
           <span style={{ color:"#e50914" }}>STREAM</span><span style={{ color:"#fff" }}>X</span>
         </div>
 
-        {/* Lang pills — desktop */}
         <div style={{ display:"flex", gap:4, flexShrink:0 }}>
           {LANG_PILLS.slice(0,4).map(l=>(
             <button key={l} className="pill-tab" style={{ fontSize:12, padding:"5px 10px" }}>{l}</button>
           ))}
         </div>
 
-        {/* Spacer */}
         <div style={{ flex:1 }}/>
 
-        {/* Search */}
-        <div style={{ display:"flex", alignItems:"center", background:searchOpen||searchVal?"rgba(255,255,255,0.07)":"transparent", borderRadius:8, border:`1px solid ${searchOpen||searchVal?"#2a2a36":"transparent"}`, transition:"all 0.25s", overflow:"hidden" }}>
-          <button onClick={()=>setSearchOpen(o=>!o)} style={{ background:"none", border:"none", color:"#888", fontSize:17, padding:"8px 12px", cursor:"pointer", flexShrink:0 }}>🔍</button>
-          {(searchOpen||searchVal) && (
-            <input autoFocus value={searchVal} onChange={e=>onSearch(e.target.value)} placeholder="Search titles, genres…"
-              style={{ background:"none", border:"none", color:"#fff", fontSize:13, outline:"none", padding:"8px 12px 8px 0", width:180 }}
-            />
-          )}
-        </div>
+        {/* Search button */}
+        <button onClick={onSearchClick} style={{
+          display:"flex", alignItems:"center", gap:8,
+          background:"rgba(255,255,255,0.07)",
+          border:"1px solid #2a2a36",
+          borderRadius:8, padding:"7px 14px",
+          color:"#aaa", fontSize:13, cursor:"pointer",
+        }}>
+          🔍 <span style={{ fontSize:12 }}>Search</span>
+        </button>
 
-        {/* Account */}
         <div style={{ display:"flex", alignItems:"center", gap:8 }}>
-          <button style={{ background:"rgba(229,9,20,0.12)", border:"1px solid rgba(229,9,20,0.3)", color:"#e50914", borderRadius:7, padding:"6px 14px", fontSize:12, fontWeight:700, cursor:"pointer" }}>Premium</button>
-          <div style={{ width:34,height:34,borderRadius:"50%",background:"linear-gradient(135deg,#e50914,#ff6b35)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:15,cursor:"pointer" }}>👤</div>
+          <button onClick={onUpgrade} style={{ background:"rgba(229,9,20,0.12)", border:"1px solid rgba(229,9,20,0.3)", color:"#e50914", borderRadius:7, padding:"6px 14px", fontSize:12, fontWeight:700, cursor:"pointer" }}>
+            👑 Premium
+          </button>
+          <div style={{ width:34,height:34,borderRadius:"50%",background:"linear-gradient(135deg,#e50914,#ff6b35)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:15,cursor:"pointer" }}>
+            {user?.name?.[0]?.toUpperCase() || "👤"}
+          </div>
         </div>
       </div>
 
-      {/* Category tabs row */}
       <div ref={catRef} style={{ display:"flex", gap:0, overflowX:"auto", padding:"0 4vw", borderTop:"1px solid rgba(255,255,255,0.04)" }}>
         {CATEGORIES.map(cat=>(
           <button key={cat} className={`pill-tab${activeCat===cat?" active":""}`} onClick={()=>setActiveCat(cat)}>
@@ -518,7 +487,6 @@ function Navbar({ activeCat, setActiveCat, onSearch, searchVal, onLogoClick }) {
   );
 }
 
-/* ── MINI PLAYER TOAST ──────────────────────── */
 function NowPlayingBar({ item, onClose }) {
   if(!item) return null;
   return (
@@ -543,22 +511,15 @@ function NowPlayingBar({ item, onClose }) {
   );
 }
 
-/* ── MAIN HOME ──────────────────────────────── */
-export default function StreamXHome() {
-  const [activeCat, setActiveCat] = useState("For You");
-  const [search, setSearch] = useState("");
-  const [nowPlaying, setNowPlaying] = useState(null);
+export default function StreamXHome({ onNavigate, user, onUpgrade }) {
+  const [activeCat,   setActiveCat]   = useState("For You");
+  const [nowPlaying,  setNowPlaying]  = useState(null);
+  const [showSearch,  setShowSearch]  = useState(false);
 
   function handlePlay(item){ setNowPlaying(item); }
-  function handleSearch(v){ setSearch(v); }
 
-  // Filter rows by category
-  const visibleRows = search
-    ? [{ id:"search", label:`🔍 Results for "${search}"`, sublabel:``, items:
-        CONTENT_ROWS.flatMap(r=>r.items).filter(i=>i.title.toLowerCase().includes(search.toLowerCase()))
-          .map(i=>({...i,w:150}))
-      }]
-    : activeCat==="For You" ? CONTENT_ROWS
+  const visibleRows =
+    activeCat==="For You" ? CONTENT_ROWS
     : activeCat==="Live"    ? CONTENT_ROWS.filter(r=>r.id==="live")
     : activeCat==="Movies"  ? CONTENT_ROWS.filter(r=>r.id==="movies"||r.id==="trending")
     : activeCat==="Series"  ? CONTENT_ROWS.filter(r=>r.id==="series"||r.id==="continue")
@@ -571,34 +532,39 @@ export default function StreamXHome() {
     <div style={{ minHeight:"100vh", background:"#0a0a0f", paddingBottom:nowPlaying?80:0 }}>
       <style>{G}</style>
 
+      {/* Search overlay */}
+      {showSearch && (
+        <Search
+          onPlay={(item) => { setNowPlaying(item); setShowSearch(false); }}
+          onClose={() => setShowSearch(false)}
+        />
+      )}
+
       <Navbar
         activeCat={activeCat}
-        setActiveCat={v=>{ setActiveCat(v); setSearch(""); }}
-        onSearch={handleSearch}
-        searchVal={search}
-        onLogoClick={()=>{ setActiveCat("For You"); setSearch(""); }}
+        setActiveCat={v=>{ setActiveCat(v); }}
+        onLogoClick={()=>{ setActiveCat("For You"); }}
+        onSearchClick={() => setShowSearch(true)}
+        user={user}
+        onUpgrade={onUpgrade}
       />
 
-      {/* Hero — only on For You and no search */}
-      {activeCat==="For You" && !search && (
+      {activeCat==="For You" && (
         <HeroSection onPlay={handlePlay} />
       )}
 
-      {/* Sub-hero spacer on category pages */}
-      {(activeCat!=="For You" || search) && (
+      {activeCat!=="For You" && (
         <div style={{ height:106 }}/>
       )}
 
-      {/* Content rows */}
-      <div style={{ paddingTop: activeCat==="For You"&&!search ? 32 : 16 }}>
+      <div style={{ paddingTop: activeCat==="For You" ? 32 : 16 }}>
         {visibleRows.map(row=>(
           row.items.length > 0 &&
           <ContentRow key={row.id} row={row} onPlay={handlePlay} />
         ))}
       </div>
 
-      {/* Promo strip */}
-      {activeCat==="For You" && !search && (
+      {activeCat==="For You" && (
         <div style={{ margin:"8px 4vw 40px", borderRadius:16, overflow:"hidden", background:"linear-gradient(120deg,#e50914 0%,#ff6b35 50%,#e50914 100%)", backgroundSize:"200% 100%", padding:"28px 36px", display:"flex", justifyContent:"space-between", alignItems:"center", flexWrap:"wrap", gap:16 }}>
           <div>
             <div style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:28, letterSpacing:1, marginBottom:6 }}>Unlock StreamX Premium</div>
@@ -609,19 +575,16 @@ export default function StreamXHome() {
               <div style={{ fontSize:28, fontWeight:900 }}>₹499<span style={{ fontSize:14, fontWeight:400 }}>/mo</span></div>
               <div style={{ fontSize:11, opacity:0.7 }}>or ₹999/year</div>
             </div>
-            <button style={{ background:"#fff", color:"#e50914", border:"none", borderRadius:8, padding:"12px 24px", fontWeight:800, fontSize:14, cursor:"pointer", whiteSpace:"nowrap" }}>Subscribe Now</button>
+            <button onClick={onUpgrade} style={{ background:"#fff", color:"#e50914", border:"none", borderRadius:8, padding:"12px 24px", fontWeight:800, fontSize:14, cursor:"pointer", whiteSpace:"nowrap" }}>Subscribe Now</button>
           </div>
         </div>
       )}
 
-      {/* Footer note */}
       <div style={{ textAlign:"center", padding:"24px 0 40px", color:"#2a2a36", fontSize:12 }}>
         © 2026 StreamX · All rights reserved
       </div>
 
-      {/* Now Playing mini bar */}
       <NowPlayingBar item={nowPlaying} onClose={()=>setNowPlaying(null)} />
     </div>
   );
 }
-
