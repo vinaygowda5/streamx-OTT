@@ -676,13 +676,19 @@ export default function Profile({ onNavigate }) {
         )}
 
         {/* Sign out */}
-        <button onClick={() => { showToast("Signed out!"); setTimeout(() => onNavigate("home"), 1000); }} style={{
-          width: "100%", background: "rgba(248,113,113,.08)",
-          border: "1px solid rgba(248,113,113,.25)", color: "#f87171",
-          borderRadius: 12, padding: "14px 0", fontFamily: "inherit",
-          fontSize: 14, fontWeight: 700, cursor: "pointer", marginTop: 8
-        }}>Sign Out of All Devices</button>
-
+        <button onClick={() => {
+          localStorage.clear();
+          window.location.href = "/";
+          }} style={{
+           width:"100%",
+           background:"rgba(248,113,113,.08)",
+           border:`1px solid rgba(248,113,113,.25)`,
+           color:"#f87171", borderRadius:12, padding:"14px 0",
+           fontFamily:"'Plus Jakarta Sans',sans-serif",
+           fontSize:14, fontWeight:700, cursor:"pointer"
+          }}>
+           Sign Out of all Devices
+        </button>
       </div>
     </div>
   );

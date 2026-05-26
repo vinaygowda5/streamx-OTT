@@ -45,10 +45,12 @@ export default function App() {
   }
 
   function handleLogout() {
-    localStorage.clear();
-    setUser(null);
-    setPage("home");
-  }
+  localStorage.clear();
+  setUser(null);
+  setPlan("free");
+  setPage("home");
+  window.location.reload();
+}
 
   function handlePaySuccess(data) {
     setPlan(data.planId);
