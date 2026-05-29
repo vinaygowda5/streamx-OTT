@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { supabase, users } from "./supabase.js";
+import { supabase, db } from "./supabase.js";
 import Login   from "./Login.jsx";
 import Home    from "./Home.jsx";
 import Profile from "./Profile.jsx";
@@ -31,7 +31,7 @@ export default function App() {
         // Get user from our DB
         const phone = session.user.phone;
         const dbUser = phone
-          ? await users.getByPhone(phone).catch(()=>null)
+          ? await db.getUserByPhone(phone).catch(()=>null)
           : null;
 
         if (dbUser) {
@@ -46,7 +46,7 @@ export default function App() {
       if (saved) {
         const parsed = JSON.parse(saved);
         // Verify user still exists in DB
-        const dbUser = await users.getById(parsed.id).catch(()=>null);
+        const dbUser = await db.getUserById(parsed.id).catch(()=>null);
         if (dbUser) {
           setUser(dbUser);
         } else {
@@ -92,7 +92,7 @@ export default function App() {
     setShowPayment(false);
     // Refresh user data
     if (user?.id) {
-      const updated = await users.getById(user.id).catch(()=>null);
+      const updated = await db.getUserById(user.id).catch(()=>null);
       if (updated) {
         setUser(updated);
         localStorage.setItem("streamx_user", JSON.stringify(updated));

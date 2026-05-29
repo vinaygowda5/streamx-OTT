@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { supabase, users } from "./supabase.js";
+import { supabase, db } from "./supabase.js";
 
 export default function Login({ onLogin }) {
   const [step,    setStep]    = useState("phone"); // phone | otp | name
@@ -68,7 +68,7 @@ export default function Login({ onLogin }) {
       if (error) throw error;
 
       // Check if user exists in our DB
-      const existingUser = await users.getByPhone(fullPhone);
+      const existingUser = await db.getUserByPhone(fullPhone);
 
       if (existingUser) {
         // Existing user — log them in
@@ -82,7 +82,7 @@ export default function Login({ onLogin }) {
       // Test mode fallback
       if (otpCode === "123456") {
         const fullPhone = "+91" + phone.replace(/\D/g,"").slice(-10);
-        const existingUser = await users.getByPhone(fullPhone).catch(()=>null);
+        const existingUser = await db.getUserByPhone(fullPhone).catch(()=>null);
         if (existingUser) {
           onLogin(existingUser);
         } else {
@@ -104,7 +104,7 @@ export default function Login({ onLogin }) {
       const fullPhone = "+91" + phone.replace(/\D/g,"").slice(-10);
 
       // Create user in database
-      const newUser = await users.create({
+      const newUser = await db.createUser({
         name: name.trim(),
         phone: fullPhone,
         role: "user",
