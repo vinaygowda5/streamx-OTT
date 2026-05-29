@@ -1,6 +1,9 @@
 import { useState, useEffect, useRef } from "react";
 import { supabase, db } from "./supabase.js";
 
+// ── Admin numbers ─────────────────────────
+const ADMIN_PHONES = ["+918660570052", "+919000000000", "+919000000001"];
+
 export default function Login({ onLogin }) {
   const [step,    setStep]    = useState("phone");
   const [phone,   setPhone]   = useState("");
@@ -11,236 +14,369 @@ export default function Login({ onLogin }) {
   const [timer,   setTimer]   = useState(0);
   const otpRefs = [useRef(),useRef(),useRef(),useRef(),useRef(),useRef()];
 
+  const fullPhone = "+91" + phone.replace(/\D/g,"").slice(-10);
+
   useEffect(() => {
     if (timer <= 0) return;
-    const t = setTimeout(() => setTimer(s => s-1), 1000);
+    const t = setTimeout(() => setTimer(s => s - 1), 1000);
     return () => clearTimeout(t);
   }, [timer]);
 
-  const fullPhone = "+91" + phone.replace(/\D/g,"").slice(-10);
-
+  // ── Send OTP ────────────────────────────
   async function sendOTP() {
     setError("");
-    if (phone.replace(/\D/g,"").length < 10) {
+    const digits = phone.replace(/\D/g,"");
+    if (digits.length < 10) {
       setError("Enter valid 10-digit mobile number");
       return;
     }
     setLoading(true);
     try {
-      const { error } = await supabase.auth.signInWithOtp({ phone: fullPhone });
-      if (error) throw error;
+      const { error } = await supabase.auth.signInWithOtp({
+        phone: fullPhone,
+      });
+      if (error) console.log("Supabase OTP:", error.message);
     } catch (e) {
-      // Continue anyway — show OTP screen for testing
-      console.log("OTP error (test mode):", e.message);
+      console.log("OTP send error:", e.message);
     }
+    // Always go to OTP screen
     setStep("otp");
     setTimer(30);
+    setOtp(["","","","","",""]);
     setLoading(false);
+    setTimeout(() => otpRefs[0].current?.focus(), 100);
   }
 
+  // ── Verify OTP ──────────────────────────
   async function verifyOTP() {
     setError("");
     const code = otp.join("");
-    if (code.length < 6) { setError("Enter complete 6-digit OTP"); return; }
+    if (code.length < 6) {
+      setError("Enter complete 6-digit OTP");
+      return;
+    }
     setLoading(true);
 
+    let verified = false;
+
+    // Try real Supabase OTP
     try {
-      // Try real Supabase OTP verification
       const { data, error } = await supabase.auth.verifyOtp({
         phone: fullPhone, token: code, type: "sms",
       });
+      if (!error && data?.user) verified = true;
+    } catch (e) {}
 
-      if (!error && data?.user) {
-        // Check if user exists in our users table
-        const existing = await db.getUserByPhone(fullPhone).catch(() => null);
-        if (existing && existing.name) {
-          onLogin(existing);
-          setLoading(false);
-          return;
-        }
-        // New user — ask for name
-        setStep("name");
-        setLoading(false);
-        return;
-      }
-    } catch (e) {
-      console.log("Supabase verify failed, trying test mode");
-    }
+    // Test mode — 123456 always works
+    if (!verified && code === "123456") verified = true;
 
-    // TEST MODE — OTP 123456 always works
-    if (code === "123456") {
-      const existing = await db.getUserByPhone(fullPhone).catch(() => null);
-      if (existing && existing.name) {
-        onLogin(existing);
-      } else {
-        setStep("name");
-      }
+    if (!verified) {
+      setError("Invalid OTP. Please try again.");
       setLoading(false);
       return;
     }
 
-    setError("Invalid OTP. Use 123456 for testing.");
+    // Check if user exists
+    try {
+      const existing = await db.getUserByPhone(fullPhone).catch(() => null);
+      if (existing) {
+        // Existing user — login directly
+        onLogin(existing);
+        setLoading(false);
+        return;
+      }
+    } catch (e) {}
+
+    // New user — ask for name
+    setStep("name");
     setLoading(false);
   }
 
+  // ── Create Account ──────────────────────
   async function createAccount() {
     setError("");
-    if (!name.trim()) { setError("Enter your name"); return; }
+    if (!name.trim()) {
+      setError("Please enter your name");
+      return;
+    }
     setLoading(true);
 
     try {
-      // Check if user already exists
+      // Check again if user exists (race condition)
       const existing = await db.getUserByPhone(fullPhone).catch(() => null);
       if (existing) {
-        // Update name if missing
-        if (!existing.name) {
-          const updated = await db.updateUser(existing.id, { name: name.trim() });
-          onLogin(updated || existing);
-        } else {
-          onLogin(existing);
-        }
+        const updated = existing.name
+          ? existing
+          : await db.updateUser(existing.id, { name: name.trim() }).catch(() => existing);
+        onLogin(updated);
         setLoading(false);
         return;
       }
 
-      // Create new user
+      // Determine role
+      const isAdmin = ADMIN_PHONES.includes(fullPhone);
+
+      // Create new user in Supabase DB
       const newUser = await db.createUser({
-        name: name.trim(),
-        phone: fullPhone,
-        role: "user",
-        plan: "free",
+        name:      name.trim(),
+        phone:     fullPhone,
+        role:      isAdmin ? "admin" : "user",
+        plan:      isAdmin ? "premium" : "free",
         is_active: true,
       });
 
       // Create default profile
       await supabase.from("profiles").insert({
         user_id: newUser.id,
-        name: name.trim(),
-        emoji: "😊",
-        color: "#e50914",
+        name:    name.trim(),
+        emoji:   "😊",
+        color:   "#e50914",
       }).catch(() => {});
 
       // Welcome notification
       await supabase.from("notifications").insert({
         user_id: newUser.id,
-        type: "welcome",
-        title: "Welcome to StreamX! 🎉",
+        type:    "welcome",
+        title:   "Welcome to StreamX! 🎉",
         message: "Start watching amazing content now.",
       }).catch(() => {});
 
       onLogin(newUser);
     } catch (e) {
       console.error("Create account error:", e);
-      // Fallback — create user directly without DB if it fails
-      const fallbackUser = {
-        id: "local_" + Date.now(),
-        name: name.trim(),
+      // Fallback — let them in anyway
+      const isAdmin = ADMIN_PHONES.includes(fullPhone);
+      const fallback = {
+        id:    "temp_" + Date.now(),
+        name:  name.trim(),
         phone: fullPhone,
-        role: "user",
-        plan: "free",
+        role:  isAdmin ? "admin" : "user",
+        plan:  isAdmin ? "premium" : "free",
+        is_active: true,
       };
-      onLogin(fallbackUser);
+      onLogin(fallback);
     }
     setLoading(false);
   }
 
   function handleOtpChange(i, v) {
     if (!/^\d?$/.test(v)) return;
-    const n = [...otp]; n[i] = v; setOtp(n);
+    const n = [...otp];
+    n[i] = v;
+    setOtp(n);
     if (v && i < 5) otpRefs[i+1].current?.focus();
     if (!v && i > 0) otpRefs[i-1].current?.focus();
   }
 
   function handlePaste(e) {
     const p = e.clipboardData.getData("text").replace(/\D/g,"").slice(0,6);
-    if (p.length === 6) { setOtp(p.split("")); otpRefs[5].current?.focus(); }
+    if (p.length === 6) {
+      setOtp(p.split(""));
+      otpRefs[5].current?.focus();
+    }
   }
 
   const inp = {
-    width:"100%", background:"#0a0a14", border:"1px solid #1a1a2c",
-    borderRadius:8, color:"#fff", fontSize:15, padding:"13px 16px",
-    outline:"none", fontFamily:"Inter,sans-serif",
+    background:"#0a0a14",
+    border:"1px solid #1a1a2c",
+    borderRadius:8, color:"#fff",
+    fontSize:15, outline:"none",
+    fontFamily:"Inter,sans-serif",
   };
 
   return (
-    <div style={{minHeight:"100vh",background:"#07070c",display:"flex",alignItems:"center",justifyContent:"center",padding:20,fontFamily:"Inter,sans-serif"}}>
-      <div style={{background:"#0f0f18",border:"1px solid #1a1a26",borderRadius:20,padding:"40px 32px",width:"100%",maxWidth:400}}>
-
+    <div style={{
+      minHeight:"100vh",
+      background:"linear-gradient(135deg,#07070c 0%,#0f0a14 100%)",
+      display:"flex", alignItems:"center",
+      justifyContent:"center", padding:20,
+      fontFamily:"Inter,sans-serif",
+    }}>
+      <div style={{
+        background:"rgba(15,15,24,.95)",
+        border:"1px solid #1a1a26",
+        borderRadius:24,
+        padding:"40px 28px",
+        width:"100%", maxWidth:400,
+        boxShadow:"0 24px 64px rgba(0,0,0,.6)",
+      }}>
         {/* Logo */}
         <div style={{textAlign:"center",marginBottom:32}}>
-          <div style={{fontWeight:900,fontSize:36,letterSpacing:2,marginBottom:8}}>
+          <div style={{fontWeight:900,fontSize:38,letterSpacing:2,marginBottom:6}}>
             <span style={{color:"#e50914"}}>STREAM</span>
             <span style={{color:"#fff"}}>X</span>
           </div>
-          <div style={{fontSize:13,color:"#555"}}>
-            {step==="phone"&&"Sign in or create account"}
-            {step==="otp"  &&"Verify your number"}
-            {step==="name" &&"Almost there!"}
+          <div style={{fontSize:12,color:"#444",letterSpacing:.5}}>
+            {step==="phone" && "India's Premium OTT Platform"}
+            {step==="otp"   && "Verify your mobile number"}
+            {step==="name"  && "Create your account"}
           </div>
         </div>
 
-        {/* STEP 1 — Phone */}
-        {step==="phone"&&(
+        {/* ── PHONE STEP ── */}
+        {step === "phone" && (
           <div>
-            <div style={{fontSize:12,color:"#555",fontWeight:600,textTransform:"uppercase",letterSpacing:.5,marginBottom:8}}>Mobile Number</div>
-            <div style={{display:"flex",gap:10,marginBottom:20}}>
-              <div style={{background:"#0a0a14",border:"1px solid #1a1a2c",borderRadius:8,padding:"13px 14px",color:"#aaa",fontSize:14,flexShrink:0,fontWeight:700}}>🇮🇳 +91</div>
-              <input value={phone} onChange={e=>setPhone(e.target.value.replace(/\D/g,"").slice(0,10))} placeholder="98765 43210" type="tel" maxLength={10} style={{...inp,flex:1}} onKeyDown={e=>e.key==="Enter"&&sendOTP()}/>
+            <div style={{fontSize:11,color:"#555",fontWeight:700,textTransform:"uppercase",letterSpacing:1,marginBottom:10}}>
+              Mobile Number
             </div>
-            {error&&<Err>{error}</Err>}
-            <button onClick={sendOTP} disabled={loading||phone.replace(/\D/g,"").length<10} style={{width:"100%",background:phone.replace(/\D/g,"").length===10?"#e50914":"#333",color:"#fff",border:"none",borderRadius:10,padding:"14px 0",fontWeight:800,fontSize:15,cursor:phone.replace(/\D/g,"").length===10?"pointer":"not-allowed",fontFamily:"Inter,sans-serif",transition:"all .2s"}}>
-              {loading?"Sending OTP...":"Get OTP →"}
+            <div style={{display:"flex",gap:10,marginBottom:24}}>
+              <div style={{...inp, padding:"14px 14px", flexShrink:0, display:"flex", alignItems:"center", gap:8, fontSize:14, fontWeight:700, color:"#aaa"}}>
+                🇮🇳 <span style={{color:"#fff"}}>+91</span>
+              </div>
+              <input
+                value={phone}
+                onChange={e => setPhone(e.target.value.replace(/\D/g,"").slice(0,10))}
+                placeholder="Enter mobile number"
+                type="tel"
+                maxLength={10}
+                style={{...inp, flex:1, padding:"14px 16px", fontSize:16}}
+                onKeyDown={e => e.key==="Enter" && sendOTP()}
+                autoFocus
+              />
+            </div>
+
+            {error && <ErrBox>{error}</ErrBox>}
+
+            <button
+              onClick={sendOTP}
+              disabled={loading || phone.replace(/\D/g,"").length < 10}
+              style={{
+                width:"100%",
+                background: phone.replace(/\D/g,"").length===10
+                  ? "linear-gradient(135deg,#e50914,#ff4444)"
+                  : "#1a1a26",
+                color:"#fff", border:"none", borderRadius:12,
+                padding:"16px 0", fontWeight:800, fontSize:16,
+                cursor: phone.replace(/\D/g,"").length===10 ? "pointer" : "not-allowed",
+                fontFamily:"Inter,sans-serif", transition:"all .2s",
+                letterSpacing:.5,
+              }}
+            >
+              {loading ? "Sending OTP..." : "Get OTP →"}
             </button>
-            <div style={{textAlign:"center",marginTop:16,fontSize:11,color:"#333"}}>By continuing you agree to StreamX Terms & Privacy Policy</div>
+
+            <div style={{textAlign:"center",marginTop:20,fontSize:11,color:"#2a2a36",lineHeight:1.6}}>
+              By continuing, you agree to StreamX<br/>Terms of Use and Privacy Policy
+            </div>
           </div>
         )}
 
-        {/* STEP 2 — OTP */}
-        {step==="otp"&&(
+        {/* ── OTP STEP ── */}
+        {step === "otp" && (
           <div>
-            <div style={{textAlign:"center",marginBottom:24}}>
+            <div style={{textAlign:"center",marginBottom:28}}>
+              <div style={{
+                width:64,height:64,borderRadius:"50%",
+                background:"rgba(229,9,20,.12)",
+                border:"2px solid rgba(229,9,20,.3)",
+                display:"flex",alignItems:"center",justifyContent:"center",
+                fontSize:28, margin:"0 auto 16px",
+              }}>📱</div>
               <div style={{fontSize:14,color:"#aaa",marginBottom:4}}>OTP sent to</div>
-              <div style={{fontSize:16,fontWeight:700}}>+91 {phone}</div>
-              <button onClick={()=>{setStep("phone");setOtp(["","","","","",""]);setError("");}} style={{background:"none",border:"none",color:"#e50914",fontSize:12,cursor:"pointer",marginTop:4}}>Change number</button>
+              <div style={{fontSize:18,fontWeight:800,color:"#fff"}}>+91 {phone}</div>
+              <button
+                onClick={() => {setStep("phone"); setError(""); setOtp(["","","","","",""]);}}
+                style={{background:"none",border:"none",color:"#e50914",fontSize:12,cursor:"pointer",marginTop:6,fontWeight:600}}
+              >
+                ← Change number
+              </button>
             </div>
 
-            <div style={{display:"flex",gap:10,justifyContent:"center",marginBottom:20}}>
-              {otp.map((v,i)=>(
-                <input key={i} ref={otpRefs[i]} value={v} onChange={e=>handleOtpChange(i,e.target.value)} onPaste={handlePaste} maxLength={1} type="tel"
-                  style={{width:46,height:54,borderRadius:10,background:"#0a0a14",border:`2px solid ${v?"#e50914":"#1a1a2c"}`,color:"#fff",fontSize:22,textAlign:"center",outline:"none",fontFamily:"Inter,sans-serif",transition:"border-color .2s"}}
+            <div style={{display:"flex",gap:8,justifyContent:"center",marginBottom:24}}>
+              {otp.map((v,i) => (
+                <input
+                  key={i}
+                  ref={otpRefs[i]}
+                  value={v}
+                  onChange={e => handleOtpChange(i, e.target.value)}
+                  onPaste={handlePaste}
+                  maxLength={1}
+                  type="tel"
+                  inputMode="numeric"
+                  style={{
+                    width:48, height:56, borderRadius:10,
+                    background:"#0a0a14",
+                    border:`2px solid ${v ? "#e50914" : "#1a1a2c"}`,
+                    color:"#fff", fontSize:24,
+                    textAlign:"center", outline:"none",
+                    fontFamily:"Inter,sans-serif",
+                    transition:"border-color .2s",
+                  }}
                 />
               ))}
             </div>
 
-            {error&&<Err>{error}</Err>}
+            {error && <ErrBox>{error}</ErrBox>}
 
-            <button onClick={verifyOTP} disabled={loading||otp.join("").length<6} style={{width:"100%",background:otp.join("").length===6?"#e50914":"#333",color:"#fff",border:"none",borderRadius:10,padding:"14px 0",fontWeight:800,fontSize:15,cursor:otp.join("").length===6?"pointer":"not-allowed",fontFamily:"Inter,sans-serif",marginBottom:16}}>
-              {loading?"Verifying...":"Verify OTP →"}
+            <button
+              onClick={verifyOTP}
+              disabled={loading || otp.join("").length < 6}
+              style={{
+                width:"100%",
+                background: otp.join("").length===6
+                  ? "linear-gradient(135deg,#e50914,#ff4444)"
+                  : "#1a1a26",
+                color:"#fff", border:"none", borderRadius:12,
+                padding:"16px 0", fontWeight:800, fontSize:16,
+                cursor: otp.join("").length===6 ? "pointer" : "not-allowed",
+                fontFamily:"Inter,sans-serif", marginBottom:16,
+              }}
+            >
+              {loading ? "Verifying..." : "Verify OTP →"}
             </button>
 
             <div style={{textAlign:"center",fontSize:13,color:"#555"}}>
-              {timer>0
-                ? `Resend OTP in ${timer}s`
-                : <button onClick={()=>{sendOTP();setOtp(["","","","","",""]);}} style={{background:"none",border:"none",color:"#e50914",cursor:"pointer",fontSize:13,fontWeight:600}}>Resend OTP</button>
+              {timer > 0
+                ? <span>Resend OTP in <span style={{color:"#e50914",fontWeight:700}}>{timer}s</span></span>
+                : <button
+                    onClick={() => {sendOTP(); setOtp(["","","","","",""]);}}
+                    style={{background:"none",border:"none",color:"#e50914",cursor:"pointer",fontSize:13,fontWeight:700}}
+                  >
+                    Resend OTP
+                  </button>
               }
             </div>
-            <div style={{textAlign:"center",marginTop:10,fontSize:11,color:"#333"}}>Test mode: use OTP 123456</div>
+            <div style={{textAlign:"center",marginTop:8,fontSize:10,color:"#1f1f2e"}}>
+              Test: OTP 123456
+            </div>
           </div>
         )}
 
-        {/* STEP 3 — Name */}
-        {step==="name"&&(
+        {/* ── NAME STEP ── */}
+        {step === "name" && (
           <div>
-            <div style={{textAlign:"center",marginBottom:24}}>
-              <div style={{fontSize:48,marginBottom:8}}>👋</div>
-              <div style={{fontSize:14,color:"#aaa"}}>What should we call you?</div>
+            <div style={{textAlign:"center",marginBottom:28}}>
+              <div style={{fontSize:52,marginBottom:12}}>👋</div>
+              <div style={{fontSize:18,fontWeight:700,marginBottom:4}}>Welcome to StreamX!</div>
+              <div style={{fontSize:13,color:"#555"}}>What should we call you?</div>
             </div>
-            <div style={{marginBottom:20}}>
-              <input value={name} onChange={e=>setName(e.target.value)} placeholder="Your name" style={inp} autoFocus onKeyDown={e=>e.key==="Enter"&&createAccount()}/>
-            </div>
-            {error&&<Err>{error}</Err>}
-            <button onClick={createAccount} disabled={loading||!name.trim()} style={{width:"100%",background:name.trim()?"#e50914":"#333",color:"#fff",border:"none",borderRadius:10,padding:"14px 0",fontWeight:800,fontSize:15,cursor:name.trim()?"pointer":"not-allowed",fontFamily:"Inter,sans-serif"}}>
-              {loading?"Creating account...":"Let's Go 🚀"}
+
+            <input
+              value={name}
+              onChange={e => setName(e.target.value)}
+              placeholder="Enter your full name"
+              style={{...inp, width:"100%", padding:"14px 16px", fontSize:15, marginBottom:20}}
+              autoFocus
+              onKeyDown={e => e.key==="Enter" && createAccount()}
+            />
+
+            {error && <ErrBox>{error}</ErrBox>}
+
+            <button
+              onClick={createAccount}
+              disabled={loading || !name.trim()}
+              style={{
+                width:"100%",
+                background: name.trim()
+                  ? "linear-gradient(135deg,#e50914,#ff4444)"
+                  : "#1a1a26",
+                color:"#fff", border:"none", borderRadius:12,
+                padding:"16px 0", fontWeight:800, fontSize:16,
+                cursor: name.trim() ? "pointer" : "not-allowed",
+                fontFamily:"Inter,sans-serif",
+              }}
+            >
+              {loading ? "Creating account..." : "Start Watching 🎬"}
             </button>
           </div>
         )}
@@ -249,6 +385,13 @@ export default function Login({ onLogin }) {
   );
 }
 
-function Err({children}) {
-  return <div style={{background:"rgba(248,113,113,.1)",border:"1px solid rgba(248,113,113,.3)",borderRadius:7,padding:"10px 14px",marginBottom:16,color:"#f87171",fontSize:13}}>❌ {children}</div>;
+function ErrBox({ children }) {
+  return (
+    <div style={{
+      background:"rgba(248,113,113,.1)",
+      border:"1px solid rgba(248,113,113,.3)",
+      borderRadius:8, padding:"10px 14px",
+      marginBottom:16, color:"#f87171", fontSize:13,
+    }}>❌ {children}</div>
+  );
 }

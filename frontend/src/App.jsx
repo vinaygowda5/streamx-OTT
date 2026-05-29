@@ -7,8 +7,8 @@ import Admin   from "./Admin.jsx";
 import Payment from "./Payment.jsx";
 import Search  from "./Search.jsx";
 
+const ADMIN_PHONES = ["+918660570052","+919000000000","+919000000001"];
 const ADMIN_EMAILS = ["admin@streamx.in","vinaygowda12096909@email.com"];
-const ADMIN_PHONES = ["+919000000000","+919000000001"];
 
 export default function App() {
   const [user,        setUser]        = useState(null);
@@ -60,8 +60,8 @@ export default function App() {
   }
 
   const isAdmin = user && (
-    ADMIN_EMAILS.includes(user.email) ||
     ADMIN_PHONES.includes(user.phone) ||
+    ADMIN_EMAILS.includes(user.email) ||
     user.role === "admin"
   );
 
