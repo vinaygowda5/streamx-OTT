@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { supabase, db } from "./supabase.js";
 
 // ── Admin numbers ─────────────────────────
-const ADMIN_PHONES = ["+918660570052", "+919000000000", "+919000000001"];
+const ADMIN_PHONES = ["+918088820924", "+919000000000", "+919000000001"];
 
 export default function Login({ onLogin }) {
   const [step,    setStep]    = useState("phone");

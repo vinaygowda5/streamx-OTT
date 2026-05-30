@@ -7,7 +7,7 @@ import Admin   from "./Admin.jsx";
 import Payment from "./Payment.jsx";
 import Search  from "./Search.jsx";
 
-const ADMIN_PHONES = ["+918660570052","+919000000000","+919000000001"];
+const ADMIN_PHONES = ["+918088820924","+919000000000","+919000000001"];
 const ADMIN_EMAILS = ["admin@streamx.in","vinaygowda12096909@email.com"];
 
 export default function App() {
