@@ -140,7 +140,7 @@ export default function App() {
       {/* Pages */}
       {page==="home"    &&<Home    onNavigate={setPage} user={user} onUpgrade={()=>setShowPayment(true)} onSearch={()=>setShowSearch(true)}/>}
       {page==="profile" &&<Profile onNavigate={setPage} user={user} onLogout={handleLogout} onUpgrade={()=>setShowPayment(true)}/>}
-      {page==="admin"   &&<Admin   onNavigate={setPage}/>}
+      {page==="admin"   &&<Admin   onNavigate={setPage} user={user}/>}
 
       {/* Bottom Nav */}
       <div style={{position:"fixed",bottom:0,left:0,right:0,background:"rgba(10,10,15,.97)",borderTop:"1px solid #1a1a26",display:"flex",justifyContent:"space-around",padding:"10px 0 14px",zIndex:500,backdropFilter:"blur(12px)"}}>
