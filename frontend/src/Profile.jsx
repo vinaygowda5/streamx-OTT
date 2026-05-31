@@ -81,7 +81,7 @@ export default function Profile({ onNavigate, user, onLogout, onUpgrade }) {
   const [history,      setHistory]     = useState([]);
   const [notifications,setNotifs]      = useState([]);
   const [subscription, setSub]         = useState(null);
-  const [loading,      setLoading]     = useState(true);
+  const [loading,      setLoading]     = useState(false);
   const [toast,        setToast]       = useState(null);
   const [editName,     setEditName]    = useState(false);
   const [newName,      setNewName]     = useState(user?.name || "");
@@ -99,24 +99,26 @@ export default function Profile({ onNavigate, user, onLogout, onUpgrade }) {
     if (!user?.id) { setLoading(false); return; }
     setLoading(true);
     try {
-      const [profilesRes, watchlistRes, historyRes, notifsRes, subRes] = await Promise.all([
+      const [profilesRes, watchlistRes, historyRes, notifsRes, subRes, freshUser] =
+       await Promise.all([
         db.getProfiles(user.id).catch(() => []),
         db.getWatchlist(user.id).catch(() => []),
         db.getHistory(user.id).catch(() => []),
         db.getNotifications(user.id).catch(() => []),
         db.getSubscription(user.id).catch(() => null),
+        db.getUserById(user.id).catch(() => null),
       ]);
-      setProfiles(profilesRes);
-      setWatchlist(watchlistRes);
-      setHistory(historyRes);
-      setNotifs(notifsRes);
-      setSub(subRes);
-
-      // Get fresh user data
-      const fresh = await db.getUserById(user.id).catch(() => null);
-      if (fresh) setUserData(fresh);
+      setProfiles(profilesRes || []);
+      setWatchlist(watchlistRes || []);
+      setHistory(historyRes || []);
+      setNotifs(notifsRes || []);
+      setSub(subRes || null);
+      if (freshUser) {
+        setUserData(freshUser);
+        localStorage.setItem("streamx_user", JSON.stringify(freshUser));
+      }
     } catch (e) {
-      console.error("Load error:", e);
+      console.error("Profile Load error:", e);
     }
     setLoading(false);
   }
