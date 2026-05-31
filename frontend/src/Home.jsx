@@ -45,48 +45,51 @@ function getColor(item) {
 
 // ── Universal Video Player Component ─────
 function UniversalPlayer({ content, user, onClose }) {
-  const isYoutube = content?.stream_url?.includes("youtube.com") || content?.stream_url?.includes("youtu.be");
-  const isEmbed   = content?.embed_url || isYoutube;
+  if (!content) return null;
 
-  function getEmbedUrl(url) {
-    if (!url) return "";
-    if (url.includes("youtube.com/watch?v=")) {
-      return url.replace("watch?v=", "embed/") + "?autoplay=1";
-    }
-    if (url.includes("youtu.be/")) {
-      const id = url.split("youtu.be/")[1];
-      return `https://www.youtube.com/embed/${id}?autoplay=1`;
-    }
-    return url;
+  const url = content.embed_url || content.stream_url || "";
+  const isYT = url.includes("youtube.com") || url.includes("youtu.be");
+
+  function toEmbed(u) {
+    try {
+      if (u.includes("youtube.com/watch?v=")) {
+        const id = new URL(u).searchParams.get("v");
+        return `https://www.youtube.com/embed/${id}?autoplay=1&rel=0`;
+      }
+      if (u.includes("youtu.be/")) {
+        const id = u.split("youtu.be/")[1]?.split("?")[0];
+        return `https://www.youtube.com/embed/${id}?autoplay=1&rel=0`;
+      }
+    } catch(e) {}
+    return u;
   }
 
-  if (isEmbed || content?.embed_url) {
+  if (content.embed_url || isYT) {
     return (
       <div style={{position:"fixed",inset:0,zIndex:700,background:"#000",display:"flex",flexDirection:"column"}}>
-        <div style={{display:"flex",alignItems:"center",gap:14,padding:"12px 20px",background:"rgba(0,0,0,.9)",borderBottom:"1px solid #1a1a26"}}>
+        <div style={{display:"flex",alignItems:"center",gap:14,padding:"12px 18px",background:"rgba(0,0,0,.95)",borderBottom:"1px solid #1a1a26",flexShrink:0}}>
           <button onClick={onClose} style={{background:"none",border:"none",color:"#fff",fontSize:22,cursor:"pointer"}}>←</button>
-          <div>
+          <div style={{flex:1}}>
             <div style={{fontWeight:700,fontSize:15}}>{content.title}</div>
-            <div style={{fontSize:11,color:"#666"}}>{content.type} · {content.genre}</div>
+            <div style={{fontSize:11,color:"#555"}}>{content.type} · {content.genre}</div>
           </div>
-          {content.is_live && (
-            <div style={{marginLeft:"auto",background:"#e50914",color:"#fff",fontSize:11,fontWeight:800,padding:"3px 12px",borderRadius:4,letterSpacing:2,animation:"pulse 1.5s infinite"}}>
-              ● LIVE
-            </div>
+          {(content.is_live||content.type==="Live")&&(
+            <div style={{background:"#e50914",color:"#fff",fontSize:10,fontWeight:800,padding:"3px 12px",borderRadius:4,letterSpacing:2}}>● LIVE</div>
           )}
+          <button onClick={onClose} style={{background:"rgba(255,255,255,.06)",border:"1px solid #1a1a26",color:"#aaa",borderRadius:6,padding:"5px 12px",fontSize:12,cursor:"pointer"}}>✕ Close</button>
         </div>
         <iframe
-          src={getEmbedUrl(content.embed_url || content.stream_url)}
+          src={toEmbed(content.embed_url || url)}
           style={{flex:1,width:"100%",border:"none"}}
           allow="autoplay; fullscreen; encrypted-media"
           allowFullScreen
+          title={content.title}
         />
       </div>
     );
   }
 
-  // HLS or direct video — use VideoPlayer
-  return <VideoPlayer content={content} user={user} onClose={onClose} onNext={()=>{}}/>;
+  return <VideoPlayer content={content} user={user} onClose={onClose} onNext={()=>{}} />;
 }
 
 // ── Content Card ──────────────────────────
