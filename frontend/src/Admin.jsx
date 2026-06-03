@@ -7,7 +7,7 @@ import { supabase, db } from "./supabase.js";
 ═══════════════════════════════════════════════════════ */
 
 // ── Security Config ───────────────────────────────────
-const ADMIN_PHONES = ["+918088820924", "+919000000000", "+919000000001"];
+const ADMIN_PHONES = ["+918660570052", "+919000000000", "+919000000001"];
 const ADMIN_EMAILS = ["admin@streamx.in", "vinaygowda12096909@email.com"];
 const SESSION_TIMEOUT = 30 * 60 * 1000; // 30 minutes
 const MAX_LOGIN_ATTEMPTS = 5;
