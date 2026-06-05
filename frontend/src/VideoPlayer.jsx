@@ -2,38 +2,72 @@ import { useState, useEffect, useRef } from "react";
 import Hls from "hls.js";
 import { db } from "./supabase.js";
 
+/* ═══════════════════════════════════════════
+   StreamX Video Player — Exact Jio Hotstar Style
+   - Video plays top half
+   - Info + Episodes bottom half (scrollable)
+   - Settings sheet (Quality/Audio/Subtitles/Speed)
+   - Ad banner below video
+   - Skip Intro / Skip Recap buttons
+   - Responsive: Mobile + Tablet + Desktop
+═══════════════════════════════════════════ */
+
 const ADS = [
-  { id:"a1", brand:"JioFiber Ultra",  tagline:"1 Gbps. Zero buffering.",     cta:"Get Now",   emoji:"⚡", color:"#003580", duration:15, skip:5 },
-  { id:"a2", brand:"Zomato Pro",       tagline:"Free delivery on 1000+.",     cta:"Order Now", emoji:"🍔", color:"#cb202d", duration:10, skip:5 },
-  { id:"a3", brand:"Dream11",          tagline:"Create team. Win big.",        cta:"Play Now",  emoji:"🏆", color:"#f3a700", duration:10, skip:5 },
-  { id:"a4", brand:"Swiggy",           tagline:"Groceries in 10 minutes.",    cta:"Shop Now",  emoji:"🛒", color:"#fc8019", duration:12, skip:5 },
+  { id:"a1", brand:"Swiggy", icon:"🛵", tagline:"Order food, right here!", sub:"Grab dishes at ₹9", cta:"Order Now", color:"#fc8019", bg:"#1a0a00" },
+  { id:"a2", brand:"JioFiber", icon:"⚡", tagline:"1 Gbps broadband!", sub:"Starting ₹399/month", cta:"Get Now", color:"#003580", bg:"#00091a" },
+  { id:"a3", brand:"Dream11", icon:"🏆", tagline:"Play fantasy. Win big.", sub:"Join 15 Crore+ players", cta:"Play Now", color:"#f3a700", bg:"#1a1000" },
+  { id:"a4", brand:"Zomato", icon:"🍔", tagline:"Flat 60% off on orders!", sub:"Use code: HOTSTAR", cta:"Order Now", color:"#e23744", bg:"#1a0005" },
 ];
 
+const QUALITY_OPTIONS = [
+  { id:"auto",  label:"Auto",    sub:"Recommended for best experience", lock:false },
+  { id:"1080p", label:"Full HD", sub:"Up to 1080p", lock:true },
+  { id:"720p",  label:"HD",      sub:"Up to 720p",  lock:false },
+  { id:"480p",  label:"Data Saver", sub:"Up to 480p", lock:false },
+];
+
+const AUDIO_LANGS = ["Hindi","English","Kannada","Tamil","Telugu","Bengali","Malayalam","Punjabi","Marathi"];
+const SUBTITLE_LANGS = ["Off","Hindi","English","Kannada","Tamil","Telugu"];
+const SPEEDS = [{ v:0.5,l:"0.5x" },{ v:0.75,l:"0.75x" },{ v:1,l:"Normal" },{ v:1.25,l:"1.25x" },{ v:1.5,l:"1.5x" },{ v:2,l:"2x" }];
+
 const CSS = `
-  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
-  .vp * { box-sizing: border-box; font-family: 'Inter', sans-serif; }
-  @keyframes spin    { to   { transform: rotate(360deg); } }
-  @keyframes fadeIn  { from { opacity:0; } to { opacity:1; } }
-  @keyframes slideUp { from { opacity:0; transform:translateY(10px); } to { opacity:1; transform:translateY(0); } }
-  @keyframes pulse   { 0%,100% { opacity:1; } 50% { opacity:.4; } }
-  @keyframes adIn    { from { opacity:0; transform:scale(.97); } to { opacity:1; transform:scale(1); } }
-  .vp-progress { -webkit-appearance:none; appearance:none; width:100%; height:4px; background:transparent; cursor:pointer; outline:none; }
-  .vp-progress::-webkit-slider-thumb { -webkit-appearance:none; width:14px; height:14px; border-radius:50%; background:#e50914; box-shadow:0 0 0 3px rgba(229,9,20,.3); cursor:pointer; }
-  .vp-progress::-moz-range-thumb { width:14px; height:14px; border-radius:50%; background:#e50914; border:none; cursor:pointer; }
-  .vp-vol { -webkit-appearance:none; appearance:none; height:3px; background:rgba(255,255,255,.3); cursor:pointer; outline:none; border-radius:2px; }
-  .vp-vol::-webkit-slider-thumb { -webkit-appearance:none; width:12px; height:12px; border-radius:50%; background:#fff; cursor:pointer; }
-  .vp-vol::-moz-range-thumb { width:12px; height:12px; border-radius:50%; background:#fff; border:none; cursor:pointer; }
-  .vp-btn { background:rgba(255,255,255,.1); border:1px solid rgba(255,255,255,.15); color:#fff; border-radius:7px; padding:6px 12px; font-size:12px; font-weight:600; cursor:pointer; white-space:nowrap; transition:all .15s; }
-  .vp-btn:hover { background:rgba(255,255,255,.2); }
-  .vp-btn.on { background:rgba(229,9,20,.25); border-color:rgba(229,9,20,.5); color:#e50914; }
-  .vp-icon { background:none; border:none; color:rgba(255,255,255,.85); cursor:pointer; padding:7px; display:flex; align-items:center; justify-content:center; border-radius:7px; transition:all .15s; }
-  .vp-icon:hover { background:rgba(255,255,255,.12); color:#fff; }
-  .vp-menu { position:absolute; bottom:42px; right:0; background:#111120; border:1px solid #1a1a2c; border-radius:10px; padding:6px; min-width:130px; box-shadow:0 8px 32px rgba(0,0,0,.7); animation:fadeIn .15s ease; z-index:200; }
-  .vp-menu button { display:block; width:100%; background:none; border:none; color:#aaa; padding:8px 12px; font-size:12px; cursor:pointer; border-radius:7px; text-align:left; font-weight:500; transition:all .12s; }
-  .vp-menu button:hover { background:rgba(255,255,255,.07); color:#fff; }
-  .vp-menu button.on { background:rgba(229,9,20,.15); color:#e50914; font-weight:700; }
-  .ep-item { display:flex; gap:12px; padding:12px 16px; border-bottom:1px solid #1a1a2620; cursor:pointer; transition:background .14s; }
-  .ep-item:hover { background:rgba(255,255,255,.04); }
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: #0d0d0d; color: #fff; font-family: 'Inter', sans-serif; }
+  ::-webkit-scrollbar { width: 3px; }
+  ::-webkit-scrollbar-thumb { background: #333; border-radius: 2px; }
+  @keyframes fadeIn   { from { opacity:0; }                          to { opacity:1; } }
+  @keyframes slideUp  { from { opacity:0; transform:translateY(20px); } to { opacity:1; transform:translateY(0); } }
+  @keyframes slideDown{ from { opacity:0; transform:translateY(-10px); } to { opacity:1; transform:translateY(0); } }
+  @keyframes spin     { to   { transform: rotate(360deg); } }
+  @keyframes pulse    { 0%,100%{opacity:1;} 50%{opacity:.4;} }
+  @keyframes blink    { 0%,100%{opacity:1;} 50%{opacity:.3;} }
+  .prog { -webkit-appearance:none; appearance:none; width:100%; height:3px; background:transparent; cursor:pointer; outline:none; }
+  .prog::-webkit-slider-thumb { -webkit-appearance:none; width:12px; height:12px; border-radius:50%; background:#fff; cursor:pointer; }
+  .prog::-moz-range-thumb { width:12px; height:12px; border-radius:50%; background:#fff; border:none; }
+  .vol  { -webkit-appearance:none; appearance:none; height:2px; background:rgba(255,255,255,.3); cursor:pointer; outline:none; border-radius:2px; }
+  .vol::-webkit-slider-thumb { -webkit-appearance:none; width:10px; height:10px; border-radius:50%; background:#fff; cursor:pointer; }
+  .ep-row { display:flex; gap:12px; padding:14px 16px; border-bottom:1px solid #1e1e1e; cursor:pointer; transition:background .14s; align-items:center; }
+  .ep-row:hover, .ep-row:active { background:rgba(255,255,255,.05); }
+  .settings-tab { background:none; border:none; color:#aaa; font-size:14px; font-weight:500; padding:10px 16px; cursor:pointer; border-bottom:2px solid transparent; font-family:'Inter',sans-serif; white-space:nowrap; transition:all .15s; }
+  .settings-tab.on { color:#fff; font-weight:700; border-bottom-color:#1565c0; }
+  .settings-opt { display:flex; align-items:center; padding:14px 20px; cursor:pointer; border-bottom:1px solid #1e1e1e20; transition:background .14s; gap:14px; }
+  .settings-opt:hover { background:rgba(255,255,255,.04); }
+  .icon-btn { background:none; border:none; color:#fff; cursor:pointer; padding:6px; display:flex; align-items:center; justify-content:center; border-radius:6px; transition:all .15s; font-family:'Inter',sans-serif; }
+  .icon-btn:hover { background:rgba(255,255,255,.1); }
+  .action-btn { display:flex; flex-direction:column; align-items:center; gap:5px; background:none; border:none; color:#aaa; cursor:pointer; font-size:11px; font-family:'Inter',sans-serif; padding:8px 12px; min-width:60px; }
+  .action-btn svg, .action-btn span.ico { font-size:20px; }
+  /* RESPONSIVE */
+  @media(min-width:768px) {
+    .player-layout { flex-direction:row !important; height:100vh !important; }
+    .video-section { width:60% !important; height:100% !important; flex-shrink:0; }
+    .info-section  { width:40% !important; height:100% !important; overflow-y:auto; }
+    .video-area    { height:100% !important; }
+  }
+  @media(min-width:1200px) {
+    .video-section { width:65% !important; }
+    .info-section  { width:35% !important; }
+  }
 `;
 
 export default function VideoPlayer({ content, user, onClose, onNext }) {
@@ -41,38 +75,37 @@ export default function VideoPlayer({ content, user, onClose, onNext }) {
   const hlsRef       = useRef(null);
   const containerRef = useRef(null);
   const hideTimer    = useRef(null);
-  const progressRef  = useRef(null);
 
-  const [phase,      setPhase]      = useState("loading");
-  const [playing,    setPlaying]    = useState(false);
-  const [progress,   setProgress]   = useState(0);
-  const [duration,   setDuration]   = useState(0);
-  const [buffered,   setBuffered]   = useState(0);
-  const [volume,     setVol]        = useState(0.85);
-  const [muted,      setMuted]      = useState(false);
-  const [showCtrl,   setShowCtrl]   = useState(true);
-  const [fullscreen, setFS]         = useState(false);
-  const [speed,      setSpeed]      = useState(1.0);
-  const [quality,    setQuality]    = useState("Auto");
-  const [audioLang,  setAudioLang]  = useState("Hindi");
-  const [subtitle,   setSub]        = useState("Off");
-  const [showMenu,   setShowMenu]   = useState(null);
-  const [ad,         setAd]         = useState(null);
-  const [adTime,     setAdTime]     = useState(0);
-  const [adSkip,     setAdSkip]     = useState(false);
-  const [midDone,    setMidDone]    = useState([]);
-  const [nextCount,  setNextCount]  = useState(null);
-  const [toast,      setToast]      = useState(null);
-  const [error,      setError]      = useState(null);
-  const [inWL,       setInWL]       = useState(false);
-  const [liked,      setLiked]      = useState(false);
-  const [seeking,    setSeeking]    = useState(false);
-  const [hoverTime,  setHoverTime]  = useState(null);
-  const [hoverX,     setHoverX]     = useState(0);
-  const [showInfo,   setShowInfo]   = useState(false);
-  const [showEp,     setShowEp]     = useState(false);
-  const [episodes,   setEpisodes]   = useState([]);
-  const [pip,        setPip]        = useState(false);
+  const [phase,       setPhase]       = useState("loading");
+  const [playing,     setPlaying]     = useState(false);
+  const [progress,    setProgress]    = useState(0);
+  const [duration,    setDuration]    = useState(0);
+  const [buffered,    setBuffered]    = useState(0);
+  const [volume,      setVol]         = useState(0.85);
+  const [muted,       setMuted]       = useState(false);
+  const [showCtrl,    setShowCtrl]    = useState(true);
+  const [fullscreen,  setFS]          = useState(false);
+  const [seeking,     setSeeking]     = useState(false);
+  const [ad,          setAd]          = useState(null);
+  const [adTime,      setAdTime]      = useState(0);
+  const [adSkip,      setAdSkip]      = useState(false);
+  const [midDone,     setMidDone]     = useState([]);
+  const [error,       setError]       = useState(null);
+  const [toast,       setToast]       = useState(null);
+  const [inWL,        setInWL]        = useState(false);
+  const [liked,       setLiked]       = useState(false);
+  const [nextCount,   setNextCount]   = useState(null);
+  // Settings
+  const [showSettings, setShowSettings] = useState(false);
+  const [settingsTab,  setSettingsTab]  = useState("quality");
+  const [quality,      setQuality]      = useState("auto");
+  const [audioLang,    setAudioLang]    = useState("Hindi");
+  const [subtitle,     setSub]          = useState("Off");
+  const [speed,        setSpeed]        = useState(1);
+  // Content info
+  const [episodes,     setEpisodes]     = useState([]);
+  const [selSeason,    setSelSeason]    = useState(1);
+  const [showSkipRecap,setShowSkipRecap]= useState(false);
 
   const isPremium = ["plan_premium","plan_annual","premium"].includes(user?.plan);
   const isLive    = content?.is_live || content?.type === "Live";
@@ -80,64 +113,68 @@ export default function VideoPlayer({ content, user, onClose, onNext }) {
   const streamUrl = content?.stream_url || "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8";
 
   const fmt = s => {
-    if (!s||isNaN(s)) return "0:00";
+    if(!s||isNaN(s)) return "0:00";
     const h=Math.floor(s/3600),m=Math.floor((s%3600)/60),sec=Math.floor(s%60);
     return h>0?`${h}:${String(m).padStart(2,"0")}:${String(sec).padStart(2,"0")}`:`${m}:${String(sec).padStart(2,"0")}`;
   };
 
-  const showToast = (msg) => { setToast(msg); setTimeout(()=>setToast(null), 2200); };
-
-  const resetHide = () => {
-    setShowCtrl(true);
-    clearTimeout(hideTimer.current);
-    hideTimer.current = setTimeout(()=>{ if(!showMenu) setShowCtrl(false); }, 4000);
-  };
+  const showToast = msg => { setToast(msg); setTimeout(()=>setToast(null),2200); };
+  const resetHide = () => { setShowCtrl(true); clearTimeout(hideTimer.current); hideTimer.current=setTimeout(()=>setShowCtrl(false),4000); };
 
   useEffect(()=>{
     initPlayer();
-    if(user?.id && content?.id) db.isInWatchlist(user.id,content.id).then(setInWL).catch(()=>{});
-    if(isSeries) setEpisodes(Array.from({length:content?.episode_count||8},(_,i)=>({ ep:i+1, title:`Episode ${i+1}`, dur:"42 min", watched:i<2, progress:i===1?45:0 })));
+    if(user?.id&&content?.id) db.isInWatchlist(user.id,content.id).then(setInWL).catch(()=>{});
+    if(isSeries) {
+      setEpisodes(Array.from({length:content?.episode_count||8},(_,i)=>({
+        ep:i+1, title:`Episode ${i+1}`, date:"29 May 2025", dur:`${38+i}m`,
+        watched:i<2, progress:i===1?62:0, thumbnail:content?.thumbnail||null,
+      })));
+    }
     const keys = e => {
       if(e.target.tagName==="INPUT") return;
-      if(e.key===" "||e.key==="k"){ e.preventDefault(); togglePlayKey(); }
-      if(e.key==="ArrowRight") skipKey(10);
-      if(e.key==="ArrowLeft")  skipKey(-10);
-      if(e.key==="m")          toggleMuteKey();
-      if(e.key==="f")          toggleFSKey();
-      if(e.key==="Escape")     onClose();
+      if(e.key===" "||e.key==="k"){ e.preventDefault(); togglePlay(); }
+      if(e.key==="ArrowRight") skipSecs(10);
+      if(e.key==="ArrowLeft")  skipSecs(-10);
+      if(e.key==="m")          toggleMute();
+      if(e.key==="f")          toggleFS();
+      if(e.key==="Escape"&&!showSettings) onClose();
+      if(e.key==="Escape"&&showSettings)  setShowSettings(false);
     };
-    window.addEventListener("keydown", keys);
-    return () => { cleanup(); window.removeEventListener("keydown", keys); };
+    window.addEventListener("keydown",keys);
+    return()=>{ cleanup(); window.removeEventListener("keydown",keys); };
   },[]);
 
-  function cleanup(){ if(hlsRef.current){ hlsRef.current.destroy(); hlsRef.current=null; } clearTimeout(hideTimer.current); }
-
-  const togglePlayKey  = () => { const v=videoRef.current; if(v){ v.paused?v.play():v.pause(); } };
-  const skipKey        = s  => { const v=videoRef.current; if(v) v.currentTime=Math.max(0,Math.min(v.duration||0,v.currentTime+s)); showToast(s>0?`+${s}s`:`${s}s`); };
-  const toggleMuteKey  = () => { const v=videoRef.current; if(v){ v.muted=!v.muted; setMuted(v.muted); } };
-  const toggleFSKey    = () => { if(!document.fullscreenElement) containerRef.current?.requestFullscreen?.().then(()=>setFS(true)).catch(()=>{}); else document.exitFullscreen?.().then(()=>setFS(false)).catch(()=>{}); };
+  function cleanup(){ if(hlsRef.current){hlsRef.current.destroy();hlsRef.current=null;} clearTimeout(hideTimer.current); }
 
   async function initPlayer(){
     try {
       if(!isPremium){
-        const ads = await db.getAdsForUser(user?.id,"pre_roll").catch(()=>[]);
-        if(ads?.length>0){ setAd(ads[0]); setAdTime(ads[0].duration||15); setPhase("preroll"); return; }
+        const ads=await db.getAdsForUser(user?.id,"pre_roll").catch(()=>[]);
+        if(ads?.length>0){ setAd(ads[0]||ADS[0]); setAdTime(ads[0]?.duration||15); setPhase("preroll"); return; }
       }
     } catch(e){}
+    // Use local ad fallback for testing
+    if(!isPremium){
+      const a=ADS[Math.floor(Math.random()*ADS.length)];
+      setAd(a); setAdTime(15); setPhase("preroll"); return;
+    }
     startVideo();
   }
 
-  function startVideo(){ setPhase("playing"); setTimeout(()=>{ const v=videoRef.current; if(!v){ setTimeout(startVideo,300); return; } loadHLS(v); },150); }
+  function startVideo(){
+    setPhase("playing");
+    setTimeout(()=>{ const v=videoRef.current; if(!v){setTimeout(startVideo,300);return;} loadHLS(v); },150);
+  }
 
   function loadHLS(v){
-    if(!streamUrl){ setError("No stream URL. Add URL in admin panel."); return; }
+    if(!streamUrl){setError("No stream URL. Add URL in admin panel.");return;}
     try {
       if(Hls.isSupported()){
         if(hlsRef.current) hlsRef.current.destroy();
-        const hls=new Hls({ enableWorker:true, lowLatencyMode:true });
+        const hls=new Hls({enableWorker:true,lowLatencyMode:true});
         hlsRef.current=hls; hls.loadSource(streamUrl); hls.attachMedia(v);
         hls.on(Hls.Events.MANIFEST_PARSED,()=>{ v.volume=volume; v.play().catch(()=>{}); setPlaying(true); resetHide(); });
-        hls.on(Hls.Events.ERROR,(_,d)=>{ if(d.fatal) setError("Stream unavailable. Check URL in admin."); });
+        hls.on(Hls.Events.ERROR,(_,d)=>{ if(d.fatal) setError("Stream error. Check URL."); });
       } else if(v.canPlayType("application/vnd.apple.mpegurl")){
         v.src=streamUrl; v.play().catch(()=>{}); setPlaying(true); resetHide();
       } else {
@@ -152,274 +189,399 @@ export default function VideoPlayer({ content, user, onClose, onNext }) {
     const onTime=()=>{
       if(!seeking){ setProgress(v.currentTime); setDuration(v.duration||0); }
       if(v.buffered.length>0) setBuffered(v.buffered.end(v.buffered.length-1));
-      if(!isPremium && v.duration){ const pct=(v.currentTime/v.duration)*100; [25,50,75].forEach(p=>{ if(pct>=p&&!midDone.includes(p)){ setMidDone(d=>[...d,p]); v.pause(); const a=ADS[Math.floor(Math.random()*ADS.length)]; setAd(a); setAdTime(a.duration); setAdSkip(false); setPhase("midroll"); } }); }
-      if(v.duration && v.currentTime>=v.duration*0.94 && nextCount===null && isSeries) setNextCount(10);
-      if(user?.id && content?.id && Math.floor(v.currentTime)%10===0) db.saveProgress(user.id,content.id,Math.floor(v.currentTime),Math.floor(v.duration||0)).catch(()=>{});
+      // Skip recap button at start
+      if(v.currentTime>2&&v.currentTime<90) setShowSkipRecap(true);
+      else setShowSkipRecap(false);
+      // Mid-roll ads
+      if(!isPremium&&v.duration){
+        const pct=(v.currentTime/v.duration)*100;
+        [25,50,75].forEach(p=>{
+          if(pct>=p&&!midDone.includes(p)){
+            setMidDone(d=>[...d,p]); v.pause();
+            const a=ADS[Math.floor(Math.random()*ADS.length)];
+            setAd(a); setAdTime(15); setAdSkip(false); setPhase("midroll");
+          }
+        });
+      }
+      if(v.duration&&v.currentTime>=v.duration*0.94&&nextCount===null&&isSeries) setNextCount(10);
+      if(user?.id&&content?.id&&Math.floor(v.currentTime)%10===0) db.saveProgress(user.id,content.id,Math.floor(v.currentTime),Math.floor(v.duration||0)).catch(()=>{});
     };
     v.addEventListener("timeupdate",onTime);
     v.addEventListener("play",()=>setPlaying(true));
     v.addEventListener("pause",()=>setPlaying(false));
-    v.addEventListener("ended",()=>{ setPhase("ended"); setPlaying(false); });
-    return()=>{ v.removeEventListener("timeupdate",onTime); v.removeEventListener("play",()=>{}); v.removeEventListener("pause",()=>{}); v.removeEventListener("ended",()=>{}); };
-  },[phase,seeking,midDone,isPremium,nextCount,isSeries]);
+    v.addEventListener("ended",()=>{setPhase("ended");setPlaying(false);});
+    return()=>{ v.removeEventListener("timeupdate",onTime); };
+  },[phase,seeking,midDone,isPremium,nextCount]);
 
+  // Ad countdown
   useEffect(()=>{
     if(phase!=="preroll"&&phase!=="midroll") return;
-    if(adTime<=0){ resumeAd(); return; }
-    const t=setInterval(()=>setAdTime(s=>{ if(s<=1){clearInterval(t);return 0;} return s-1; }),1000);
-    const sk=setTimeout(()=>setAdSkip(true),(ad?.skip||5)*1000);
-    return()=>{ clearInterval(t); clearTimeout(sk); };
+    if(adTime<=0){resumeAd();return;}
+    const t=setInterval(()=>setAdTime(s=>{if(s<=1){clearInterval(t);return 0;} return s-1;}),1000);
+    const sk=setTimeout(()=>setAdSkip(true),5000);
+    return()=>{clearInterval(t);clearTimeout(sk);};
   },[phase]);
 
+  // Next ep
   useEffect(()=>{
     if(nextCount===null||nextCount<0) return;
-    if(nextCount===0){ onNext?.(); return; }
+    if(nextCount===0){onNext?.();return;}
     const t=setTimeout(()=>setNextCount(n=>n-1),1000);
     return()=>clearTimeout(t);
   },[nextCount]);
 
-  function resumeAd(){ setAd(null); setAdSkip(false); if(phase==="preroll") startVideo(); else { setPhase("playing"); videoRef.current?.play(); setPlaying(true); } }
-
-  function togglePlay(){ const v=videoRef.current; if(!v) return; v.paused?v.play():v.pause(); resetHide(); }
-  function seekTo(val){ const v=videoRef.current; if(!v) return; v.currentTime=Math.max(0,Math.min(v.duration||0,val)); setProgress(v.currentTime); }
-  function skip(s){ seekTo(progress+s); showToast(s>0?`+${s}s`:`${s}s`); }
-  function toggleMute(){ const v=videoRef.current; if(!v) return; v.muted=!v.muted; setMuted(v.muted); }
-  function changeVol(val){ const v=videoRef.current; if(!v) return; v.volume=val; setVol(val); setMuted(val===0); }
-  function changeSpeed(s){ const v=videoRef.current; if(v) v.playbackRate=s; setSpeed(s); setShowMenu(null); showToast(s+"x speed"); }
-  function toggleFS(){ !document.fullscreenElement ? containerRef.current?.requestFullscreen?.().then(()=>setFS(true)).catch(()=>{}) : document.exitFullscreen?.().then(()=>setFS(false)).catch(()=>{}); }
-  async function toggleWL(){ if(!user?.id||!content?.id) return; try { if(inWL){ await db.removeFromWatchlist(user.id,content.id); setInWL(false); showToast("Removed from list"); } else { await db.addToWatchlist(user.id,content.id); setInWL(true); showToast("Added to My List ✓"); } } catch(e){} }
-  async function togglePiP(){ const v=videoRef.current; if(!v) return; try { document.pictureInPictureElement ? await document.exitPictureInPicture() : await v.requestPictureInPicture(); setPip(p=>!p); } catch(e){ showToast("PiP not supported on this browser"); } }
+  function resumeAd(){setAd(null);setAdSkip(false);if(phase==="preroll") startVideo(); else{setPhase("playing");videoRef.current?.play();setPlaying(true);}}
+  function togglePlay(){const v=videoRef.current;if(!v)return;v.paused?v.play():v.pause();resetHide();}
+  function seekTo(val){const v=videoRef.current;if(!v)return;v.currentTime=Math.max(0,Math.min(v.duration||0,val));setProgress(v.currentTime);}
+  function skipSecs(s){seekTo(progress+s);showToast(s>0?`+${s}s`:`${s}s`);}
+  function toggleMute(){const v=videoRef.current;if(!v)return;v.muted=!v.muted;setMuted(v.muted);}
+  function changeVol(val){const v=videoRef.current;if(!v)return;v.volume=val;setVol(val);setMuted(val===0);}
+  function applySpeed(s){const v=videoRef.current;if(v)v.playbackRate=s;setSpeed(s);}
+  function toggleFS(){!document.fullscreenElement?containerRef.current?.requestFullscreen?.().then(()=>setFS(true)).catch(()=>{}):document.exitFullscreen?.().then(()=>setFS(false)).catch(()=>{});}
+  async function toggleWL(){if(!user?.id||!content?.id)return;try{if(inWL){await db.removeFromWatchlist(user.id,content.id);setInWL(false);showToast("Removed from Watchlist");}else{await db.addToWatchlist(user.id,content.id);setInWL(true);showToast("Added to Watchlist ✓");}}catch(e){}}
 
   const pct    = duration>0?(progress/duration)*100:0;
   const bufPct = duration>0?(buffered/duration)*100:0;
-  const subText = subtitle!=="Off" && progress>5 && progress<12 ? "Initializing quantum interface..." : subtitle!=="Off" && progress>18 && progress<25 ? "We need to move. Now." : null;
+  const seasons = Array.from({length:content?.season_count||4},(_,i)=>i+1);
 
   return (
-    <div ref={containerRef} className="vp" onMouseMove={resetHide} onTouchStart={resetHide}
-      style={{position:"fixed",inset:0,zIndex:700,background:"#000",display:"flex",flexDirection:"column",userSelect:"none"}}>
+    <div ref={containerRef} style={{position:"fixed",inset:0,zIndex:700,background:"#0d0d0d",display:"flex",flexDirection:"column",overflow:"hidden"}}>
       <style>{CSS}</style>
 
-      {/* VIDEO */}
-      <video ref={videoRef} style={{position:"absolute",inset:0,width:"100%",height:"100%",objectFit:"contain",display:phase==="playing"||phase==="ended"?"block":"none"}} playsInline onClick={togglePlay}/>
+      {/* ═══ MAIN LAYOUT ═══ */}
+      <div className="player-layout" style={{display:"flex",flexDirection:"column",height:"100%",overflow:"hidden"}}>
 
-      {/* LOADING */}
-      {phase==="loading" && (
-        <div style={{position:"absolute",inset:0,display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",gap:20,background:"radial-gradient(ellipse at center,#120810,#000)"}}>
-          <div style={{fontSize:"clamp(60px,12vw,96px)",opacity:.1}}>{isLive?"🔴":"🎬"}</div>
-          <div style={{width:48,height:48,border:"3px solid #222",borderTop:"3px solid #e50914",borderRadius:"50%",animation:"spin .8s linear infinite"}}/>
-          <div style={{color:"#555",fontSize:14,fontWeight:500}}>{content?.title||"Loading..."}</div>
-        </div>
-      )}
+        {/* ════ VIDEO SECTION ════ */}
+        <div className="video-section" style={{position:"relative",background:"#000",flexShrink:0,height:"clamp(220px,55vw,400px)"}}>
+          <div className="video-area" style={{position:"relative",width:"100%",height:"100%",background:"#000"}} onMouseMove={resetHide} onTouchStart={resetHide}>
 
-      {/* AD */}
-      {(phase==="preroll"||phase==="midroll") && ad && (
-        <div style={{position:"absolute",inset:0,zIndex:60,background:`linear-gradient(155deg,${ad.color}77,#000 55%)`,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",animation:"adIn .4s ease"}}>
-          <div style={{position:"absolute",top:20,left:20,background:"rgba(0,0,0,.65)",backdropFilter:"blur(8px)",color:"#999",fontSize:10,padding:"4px 12px",borderRadius:20,letterSpacing:3,textTransform:"uppercase",border:"1px solid rgba(255,255,255,.08)"}}>
-            {phase==="midroll"?"Mid-roll":"Pre-roll"} · Ad
+            {/* REAL VIDEO */}
+            <video ref={videoRef} style={{position:"absolute",inset:0,width:"100%",height:"100%",objectFit:"contain",display:phase==="playing"||phase==="ended"?"block":"none"}} playsInline onClick={togglePlay}/>
+
+            {/* LOADING */}
+            {phase==="loading" && (
+              <div style={{position:"absolute",inset:0,display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",gap:14,background:"#000"}}>
+                <div style={{width:44,height:44,border:"3px solid #222",borderTop:"3px solid #1565c0",borderRadius:"50%",animation:"spin .8s linear infinite"}}/>
+                <div style={{color:"#666",fontSize:13}}>{content?.title}</div>
+              </div>
+            )}
+
+            {/* ERROR */}
+            {error && (
+              <div style={{position:"absolute",inset:0,display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",gap:14,background:"#000",padding:20}}>
+                <div style={{fontSize:40}}>⚠️</div>
+                <div style={{color:"#fff",fontSize:14,fontWeight:600,textAlign:"center",maxWidth:280}}>{error}</div>
+                <div style={{display:"flex",gap:10}}>
+                  <button onClick={()=>{setError(null);initPlayer();}} style={{background:"#1565c0",color:"#fff",border:"none",borderRadius:8,padding:"10px 20px",fontWeight:600,cursor:"pointer",fontSize:13}}>↺ Retry</button>
+                  <button onClick={onClose} style={{background:"rgba(255,255,255,.1)",color:"#fff",border:"none",borderRadius:8,padding:"10px 16px",cursor:"pointer",fontSize:13}}>Close</button>
+                </div>
+              </div>
+            )}
+
+            {/* TOAST */}
+            {toast && <div style={{position:"absolute",top:"42%",left:"50%",transform:"translate(-50%,-50%)",background:"rgba(0,0,0,.75)",color:"#fff",padding:"8px 18px",borderRadius:6,fontSize:13,fontWeight:600,pointerEvents:"none",animation:"fadeIn .18s ease",whiteSpace:"nowrap"}}>{toast}</div>}
+
+            {/* SKIP RECAP button — top right */}
+            {phase==="playing" && showCtrl && showSkipRecap && (
+              <button onClick={()=>{seekTo(duration*0.05);showToast("Recap skipped");}} style={{position:"absolute",right:"clamp(12px,3vw,20px)",top:"clamp(40px,8vw,60px)",background:"rgba(30,30,30,.9)",color:"#fff",border:"1px solid rgba(255,255,255,.25)",borderRadius:8,padding:"9px 18px",fontSize:13,fontWeight:600,cursor:"pointer",animation:"fadeIn .3s ease",zIndex:20}}>
+                Skip Recap
+              </button>
+            )}
+
+            {/* SKIP INTRO button — top right */}
+            {phase==="playing" && showCtrl && progress>90 && progress<300 && (
+              <button onClick={()=>{skipSecs(90);showToast("Intro skipped");}} style={{position:"absolute",right:"clamp(12px,3vw,20px)",top:"clamp(40px,8vw,60px)",background:"rgba(30,30,30,.9)",color:"#fff",border:"1px solid rgba(255,255,255,.25)",borderRadius:8,padding:"9px 18px",fontSize:13,fontWeight:600,cursor:"pointer",animation:"fadeIn .3s ease",zIndex:20}}>
+                Skip Intro
+              </button>
+            )}
+
+            {/* NEXT EP */}
+            {nextCount!==null && (
+              <div style={{position:"absolute",right:"clamp(12px,3vw,20px)",bottom:80,background:"rgba(0,0,0,.92)",border:"1px solid #1565c0",borderRadius:12,padding:"14px 18px",animation:"slideUp .3s ease",zIndex:20,minWidth:200}}>
+                <div style={{fontSize:11,color:"#888",marginBottom:3}}>Next in {nextCount}s</div>
+                <div style={{fontWeight:700,marginBottom:10,fontSize:13}}>Next Episode</div>
+                <div style={{display:"flex",gap:8}}>
+                  <button onClick={()=>{onNext?.();setNextCount(null);}} style={{background:"#1565c0",border:"none",color:"#fff",borderRadius:7,padding:"7px 14px",fontSize:12,fontWeight:600,cursor:"pointer"}}>Play Now</button>
+                  <button onClick={()=>setNextCount(null)} style={{background:"rgba(255,255,255,.08)",border:"none",color:"#aaa",borderRadius:7,padding:"7px 10px",fontSize:12,cursor:"pointer"}}>Cancel</button>
+                </div>
+              </div>
+            )}
+
+            {/* PLAYBACK CONTROLS overlay */}
+            {showCtrl && (phase==="playing"||phase==="ended") && (
+              <div style={{position:"absolute",inset:0,display:"flex",flexDirection:"column",justifyContent:"space-between",background:"linear-gradient(to bottom,rgba(0,0,0,.5) 0%,transparent 35%,transparent 55%,rgba(0,0,0,.7) 100%)",animation:"fadeIn .2s ease",zIndex:10}}>
+                {/* Top bar */}
+                <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"clamp(10px,2vw,14px) clamp(12px,3vw,18px)"}}>
+                  <button onClick={onClose} className="icon-btn" style={{fontSize:22}}>←</button>
+                  <div style={{display:"flex",gap:8}}>
+                    <button onClick={()=>setShowSettings(s=>!s)} className="icon-btn" style={{fontSize:20}}>⚙</button>
+                    <button onClick={toggleFS} className="icon-btn" style={{fontSize:18}}>{fullscreen?"⊡":"⛶"}</button>
+                  </div>
+                </div>
+
+                {/* Centre controls */}
+                <div style={{display:"flex",alignItems:"center",justifyContent:"center",gap:"clamp(24px,8vw,48px)"}}>
+                  <button onClick={()=>skipSecs(-10)} className="icon-btn" style={{fontSize:"clamp(28px,6vw,36px)"}}>«</button>
+                  <button onClick={togglePlay} style={{background:"none",border:"none",color:"#fff",fontSize:"clamp(32px,8vw,44px)",cursor:"pointer",padding:8}}>
+                    {playing?"⏸":"▶"}
+                  </button>
+                  <button onClick={()=>skipSecs(10)} className="icon-btn" style={{fontSize:"clamp(28px,6vw,36px)"}}>»</button>
+                </div>
+
+                {/* Bottom — progress + time */}
+                <div style={{padding:"0 clamp(12px,3vw,18px) clamp(10px,2vw,14px)"}}>
+                  {/* Time display */}
+                  <div style={{textAlign:"right",fontSize:12,color:"rgba(255,255,255,.7)",marginBottom:6,fontWeight:500}}>
+                    {fmt(progress)} / {fmt(duration)}
+                  </div>
+                  {/* Progress bar */}
+                  <div style={{position:"relative",height:3,background:"rgba(255,255,255,.25)",borderRadius:2,marginBottom:4}}>
+                    <div style={{position:"absolute",left:0,top:0,height:"100%",background:"rgba(255,255,255,.4)",borderRadius:2,width:bufPct+"%"}}/>
+                    <div style={{position:"absolute",left:0,top:0,height:"100%",background:"#1565c0",borderRadius:2,width:pct+"%"}}/>
+                    {/* Chapter markers (orange dots like Hotstar) */}
+                    {[25,50,75].filter(p=>!midDone.includes(p)).map(p=>(
+                      <div key={p} style={{position:"absolute",top:"50%",left:`${p}%`,transform:"translate(-50%,-50%)",width:6,height:6,borderRadius:"50%",background:"#f59e0b"}}/>
+                    ))}
+                    <div style={{position:"absolute",top:"50%",transform:"translate(-50%,-50%)",width:14,height:14,borderRadius:"50%",background:"#fff",left:pct+"%",boxShadow:"0 2px 8px rgba(0,0,0,.5)"}}/>
+                  </div>
+                  <input type="range" className="prog" min={0} max={duration||100} value={progress} step={0.1}
+                    onChange={e=>seekTo(+e.target.value)} onMouseDown={()=>setSeeking(true)} onMouseUp={()=>setSeeking(false)} onTouchStart={()=>setSeeking(true)} onTouchEnd={()=>setSeeking(false)}
+                    style={{position:"absolute",left:"clamp(12px,3vw,18px)",right:"clamp(12px,3vw,18px)",bottom:"clamp(22px,4vw,30px)",opacity:0,cursor:"pointer",height:14,zIndex:5,margin:0,width:`calc(100% - clamp(24px,6vw,36px))`}}
+                  />
+                </div>
+              </div>
+            )}
+
+            {/* AD OVERLAY */}
+            {(phase==="preroll"||phase==="midroll") && ad && (
+              <div style={{position:"absolute",inset:0,background:"#000",display:"flex",flexDirection:"column",zIndex:50}}>
+                {/* Black video area with ad marker */}
+                <div style={{flex:1,background:"#000",display:"flex",alignItems:"center",justifyContent:"center",position:"relative"}}>
+                  <div style={{fontSize:"clamp(40px,10vw,60px)",opacity:.15}}>{ad.icon}</div>
+                  {/* Timer top right */}
+                  <div style={{position:"absolute",top:12,right:12,background:"rgba(0,0,0,.75)",color:"rgba(255,255,255,.8)",fontSize:13,fontWeight:600,padding:"5px 12px",borderRadius:6}}>
+                    {fmt(adTime)}
+                  </div>
+                </div>
+                {/* Ad progress bar */}
+                <div style={{height:3,background:"rgba(255,255,255,.15)"}}>
+                  <div style={{height:"100%",background:ad.color,transition:"width 1s linear",width:`${((15-adTime)/15)*100}%`}}/>
+                </div>
+                {/* Skip button */}
+                {adSkip && (
+                  <button onClick={resumeAd} style={{position:"absolute",right:"clamp(12px,3vw,18px)",bottom:80,background:"rgba(20,20,20,.95)",color:"#fff",border:"1px solid rgba(255,255,255,.3)",borderRadius:8,padding:"10px 18px",fontSize:13,fontWeight:600,cursor:"pointer",animation:"fadeIn .3s ease",zIndex:60}}>
+                    Skip Ad ❯
+                  </button>
+                )}
+              </div>
+            )}
+
+            {/* ENDED */}
+            {phase==="ended" && (
+              <div style={{position:"absolute",inset:0,background:"rgba(0,0,0,.85)",display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",gap:16,zIndex:40}}>
+                <div style={{fontSize:42}}>🎬</div>
+                <div style={{fontWeight:700,fontSize:"clamp(15px,4vw,18px)",textAlign:"center"}}>{content?.title}</div>
+                <div style={{display:"flex",gap:10,flexWrap:"wrap",justifyContent:"center"}}>
+                  <button onClick={()=>{setPhase("loading");setProgress(0);setMidDone([]);setNextCount(null);initPlayer();}} style={{background:"#1565c0",color:"#fff",border:"none",borderRadius:9,padding:"10px 22px",fontWeight:700,fontSize:13,cursor:"pointer"}}>▶ Watch Again</button>
+                  {onNext&&<button onClick={onNext} style={{background:"#fff",color:"#111",border:"none",borderRadius:9,padding:"10px 22px",fontWeight:700,fontSize:13,cursor:"pointer"}}>Next →</button>}
+                  <button onClick={onClose} style={{background:"rgba(255,255,255,.1)",color:"#fff",border:"none",borderRadius:9,padding:"10px 16px",fontSize:13,cursor:"pointer"}}>✕</button>
+                </div>
+              </div>
+            )}
           </div>
-          {!isPremium && <div onClick={()=>showToast("Upgrade to Premium for ad-free!")} style={{position:"absolute",top:18,right:20,background:"rgba(229,9,20,.12)",border:"1px solid rgba(229,9,20,.3)",borderRadius:20,padding:"5px 14px",fontSize:11,color:"#e50914",fontWeight:700,cursor:"pointer"}}>👑 Go Ad-Free</div>}
-          <div style={{textAlign:"center",padding:"20px 24px",maxWidth:500,animation:"slideUp .5s ease"}}>
-            <div style={{width:96,height:96,borderRadius:"50%",background:`radial-gradient(circle,${ad.color}55,${ad.color}11)`,border:`2px solid ${ad.color}66`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:48,margin:"0 auto 18px"}}>{ad.emoji}</div>
-            <div style={{fontSize:"clamp(22px,5vw,32px)",fontWeight:900,color:"#fff",marginBottom:6}}>{ad.brand}</div>
-            <div style={{color:"rgba(255,255,255,.6)",fontSize:"clamp(13px,2.5vw,15px)",marginBottom:24,lineHeight:1.5}}>{ad.tagline}</div>
-            <button style={{background:`linear-gradient(135deg,${ad.color},${ad.color}cc)`,border:"none",color:"#fff",borderRadius:10,padding:"12px 36px",fontSize:14,fontWeight:700,cursor:"pointer"}}>{ad.cta}</button>
-          </div>
-          <div style={{position:"absolute",bottom:"clamp(70px,13vh,100px)",right:"clamp(16px,4vw,40px)",display:"flex",flexDirection:"column",alignItems:"flex-end",gap:8}}>
-            {adSkip
-              ? <button onClick={resumeAd} style={{background:"rgba(0,0,0,.88)",backdropFilter:"blur(12px)",border:"1px solid rgba(255,255,255,.3)",color:"#fff",borderRadius:8,padding:"11px 20px",fontSize:13,fontWeight:700,cursor:"pointer",animation:"fadeIn .3s ease"}}>Skip Ad ❯</button>
-              : <div style={{background:"rgba(0,0,0,.75)",color:"#777",borderRadius:8,padding:"9px 16px",fontSize:12,border:"1px solid rgba(255,255,255,.08)"}}>Skip in {Math.max(0,(ad.skip||5)-((ad.duration||15)-adTime))}s</div>
-            }
-            <div style={{width:180,height:3,background:"rgba(255,255,255,.12)",borderRadius:2,overflow:"hidden"}}>
-              <div style={{height:"100%",background:"rgba(255,255,255,.55)",borderRadius:2,width:`${((ad.duration-adTime)/ad.duration)*100}%`,transition:"width 1s linear"}}/>
-            </div>
-            <div style={{color:"rgba(255,255,255,.3)",fontSize:11}}>Ad ends in {adTime}s</div>
-          </div>
-        </div>
-      )}
 
-      {/* ERROR */}
-      {error && (
-        <div style={{position:"absolute",inset:0,display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",gap:16,background:"rgba(0,0,0,.94)",padding:20,zIndex:80}}>
-          <div style={{fontSize:52}}>⚠️</div>
-          <div style={{color:"#fff",fontSize:16,fontWeight:700,textAlign:"center",maxWidth:320,lineHeight:1.5}}>{error}</div>
-          <div style={{display:"flex",gap:10}}>
-            <button onClick={()=>{setError(null);initPlayer();}} className="vp-btn" style={{background:"#e50914",border:"none"}}>↺ Retry</button>
-            <button onClick={onClose} className="vp-btn">✕ Close</button>
-          </div>
-        </div>
-      )}
-
-      {/* TOAST */}
-      {toast && <div style={{position:"absolute",top:"46%",left:"50%",transform:"translate(-50%,-50%)",background:"rgba(0,0,0,.78)",backdropFilter:"blur(12px)",color:"#fff",padding:"9px 20px",borderRadius:8,fontSize:14,fontWeight:600,pointerEvents:"none",zIndex:200,animation:"fadeIn .18s ease",whiteSpace:"nowrap"}}>{toast}</div>}
-
-      {/* SUBTITLE */}
-      {subText && <div style={{position:"absolute",bottom:"clamp(80px,12vh,110px)",left:"50%",transform:"translateX(-50%)",background:"rgba(0,0,0,.82)",color:"#fff",padding:"6px 20px",borderRadius:6,fontSize:"clamp(14px,2.5vw,17px)",fontWeight:500,textAlign:"center",pointerEvents:"none",zIndex:25,maxWidth:"80%"}}>{subText}</div>}
-
-      {/* NEXT EP */}
-      {nextCount!==null && (
-        <div style={{position:"absolute",right:"clamp(16px,4vw,40px)",bottom:"clamp(110px,18vh,140px)",background:"rgba(0,0,0,.94)",border:"1px solid #e50914",borderRadius:14,padding:"16px 20px",zIndex:50,animation:"slideUp .3s ease",minWidth:220}}>
-          <div style={{fontSize:11,color:"#777",marginBottom:4}}>Next Episode in {nextCount}s</div>
-          <div style={{fontWeight:700,marginBottom:12,fontSize:14}}>Continue Watching</div>
-          <div style={{display:"flex",gap:8}}>
-            <button onClick={()=>{onNext?.();setNextCount(null);}} style={{background:"#e50914",border:"none",color:"#fff",borderRadius:7,padding:"8px 16px",fontSize:12,fontWeight:700,cursor:"pointer"}}>▶ Play Next</button>
-            <button onClick={()=>setNextCount(null)} style={{background:"rgba(255,255,255,.08)",border:"none",color:"#aaa",borderRadius:7,padding:"8px 12px",fontSize:12,cursor:"pointer"}}>Cancel</button>
-          </div>
-        </div>
-      )}
-
-      {/* SKIP INTRO */}
-      {phase==="playing" && showCtrl && progress>28 && progress<290 && (
-        <button onClick={()=>{skip(90-progress+28);showToast("Intro skipped");}} style={{position:"absolute",right:"clamp(16px,4vw,40px)",bottom:"clamp(110px,18vh,130px)",background:"rgba(0,0,0,.85)",backdropFilter:"blur(10px)",border:"1px solid rgba(255,255,255,.25)",color:"#fff",borderRadius:8,padding:"10px 22px",fontSize:13,fontWeight:600,cursor:"pointer",zIndex:40,animation:"slideUp .3s ease"}}>
-          Skip Intro ❯
-        </button>
-      )}
-
-      {/* EPISODES PANEL */}
-      {showEp && isSeries && (
-        <div style={{position:"absolute",right:0,top:60,bottom:80,width:"clamp(260px,35vw,320px)",background:"rgba(7,7,12,.97)",borderLeft:"1px solid #1a1a26",overflowY:"auto",zIndex:60,animation:"fadeIn .2s ease"}}>
-          <div style={{padding:"14px 16px",borderBottom:"1px solid #1a1a26",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-            <div style={{fontWeight:700,fontSize:14}}>Episodes</div>
-            <button onClick={()=>setShowEp(false)} className="vp-icon">✕</button>
-          </div>
-          {episodes.map(ep=>(
-            <div key={ep.ep} className="ep-item" onClick={()=>{showToast(`Playing E${ep.ep}`);setShowEp(false);}}>
-              <div style={{width:70,height:44,borderRadius:7,background:"linear-gradient(135deg,#e5091422,#0a0a0f)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,flexShrink:0,position:"relative"}}>
-                🎬
-                {ep.progress>0 && <div style={{position:"absolute",bottom:0,left:0,right:0,height:2,background:"#1a1a26",borderRadius:"0 0 7px 7px",overflow:"hidden"}}><div style={{height:"100%",width:`${ep.progress}%`,background:"#e50914"}}/></div>}
+          {/* AD BANNER below video — Hotstar style */}
+          {(phase==="preroll"||phase==="midroll"||phase==="playing") && ad && phase!=="preroll" && (
+            <div style={{background:"#111",borderTop:"1px solid #1e1e1e",padding:"10px clamp(12px,3vw,16px)",display:"flex",alignItems:"center",gap:12,animation:"slideDown .3s ease"}}>
+              <div style={{width:38,height:38,borderRadius:8,background:ad.color,display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,flexShrink:0}}>
+                {ad.icon}
               </div>
               <div style={{flex:1,minWidth:0}}>
-                <div style={{fontWeight:600,fontSize:12,color:"#e0e0ee"}}>E{ep.ep} · {ep.title}</div>
-                <div style={{fontSize:11,color:"#555",marginTop:2}}>{ep.dur}</div>
-                {ep.progress>0 && <div style={{fontSize:10,color:"#e50914",marginTop:2}}>{ep.progress}% watched</div>}
+                <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:1}}>
+                  <span style={{background:"#f59e0b",color:"#000",fontSize:9,fontWeight:800,padding:"1px 5px",borderRadius:3}}>Ad</span>
+                  <span style={{fontWeight:600,fontSize:13,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{ad.tagline}</span>
+                </div>
+                <div style={{fontSize:11,color:"#888"}}>{ad.sub}</div>
+              </div>
+              <div style={{display:"flex",gap:8,flexShrink:0}}>
+                <button onClick={()=>{}} style={{fontSize:18,background:"none",border:"none",color:"#aaa",cursor:"pointer"}}>∧</button>
+                <button style={{background:ad.color,color:"#fff",border:"none",borderRadius:7,padding:"7px 14px",fontSize:12,fontWeight:700,cursor:"pointer",whiteSpace:"nowrap"}}>{ad.cta}</button>
               </div>
             </div>
-          ))}
-        </div>
-      )}
+          )}
 
-      {/* INFO PANEL */}
-      {showInfo && (
-        <div style={{position:"absolute",right:showEp?"clamp(260px,35vw,320px)":0,top:60,bottom:80,width:"clamp(240px,30vw,290px)",background:"rgba(7,7,12,.97)",borderLeft:"1px solid #1a1a26",padding:18,overflowY:"auto",zIndex:55,animation:"fadeIn .2s ease"}}>
-          <div style={{display:"flex",justifyContent:"space-between",marginBottom:14}}>
-            <div style={{fontWeight:700,fontSize:14}}>About</div>
-            <button onClick={()=>setShowInfo(false)} className="vp-icon" style={{fontSize:18}}>✕</button>
-          </div>
-          <div style={{fontWeight:700,fontSize:15,marginBottom:4}}>{content?.title}</div>
-          <div style={{fontSize:11,color:"#666",marginBottom:10}}>{content?.type} · {content?.release_year} · {content?.rating}</div>
-          <div style={{fontSize:13,color:"#aaa",lineHeight:1.7,marginBottom:14}}>{content?.description}</div>
-          {content?.director && <div style={{fontSize:12,color:"#555",marginBottom:4}}>Director: <span style={{color:"#888"}}>{content.director}</span></div>}
-          {!isPremium && <div style={{background:"rgba(229,9,20,.08)",border:"1px solid rgba(229,9,20,.2)",borderRadius:8,padding:12,marginTop:8}}><div style={{fontSize:12,color:"#e50914",fontWeight:700,marginBottom:4}}>📢 Ad-Supported</div><div style={{fontSize:11,color:"#666"}}>Upgrade to Premium for ad-free 4K.</div></div>}
-        </div>
-      )}
-
-      {/* TOP BAR */}
-      {showCtrl && phase!=="preroll" && phase!=="midroll" && (
-        <div style={{position:"absolute",top:0,left:0,right:0,zIndex:30,background:"linear-gradient(to bottom,rgba(0,0,0,.92),transparent)",padding:"clamp(12px,2.5vh,18px) clamp(14px,3vw,22px)",display:"flex",alignItems:"center",gap:12,animation:"fadeIn .2s ease"}}>
-          <button onClick={onClose} className="vp-icon" style={{width:38,height:38,borderRadius:9,background:"rgba(255,255,255,.1)",border:"1px solid rgba(255,255,255,.14)",flexShrink:0,fontSize:18}}>←</button>
-          <div style={{flex:1,minWidth:0}}>
-            <div style={{fontWeight:700,fontSize:"clamp(13px,2.5vw,16px)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{content?.title}</div>
-            <div style={{fontSize:11,color:"rgba(255,255,255,.45)",marginTop:1}}>
-              {content?.type}{content?.release_year?` · ${content.release_year}`:""}{content?.rating?` · ${content.rating}`:""}
-              {isLive && <span style={{color:"#e50914",fontWeight:700,marginLeft:8,animation:"pulse 1.5s infinite"}}>● LIVE</span>}
+          {/* AUTO CLOSE countdown for ad banner */}
+          {(phase==="preroll"||phase==="midroll") && ad && (
+            <div style={{background:"#0d0d0d",padding:"6px 16px",display:"flex",alignItems:"center",gap:6}}>
+              <div style={{fontSize:14,color:"#666"}}>⏱</div>
+              <div style={{fontSize:12,color:"#666"}}>Auto Closing in {adTime}s</div>
             </div>
-          </div>
-          <div style={{display:"flex",gap:6,flexShrink:0,flexWrap:"wrap",justifyContent:"flex-end"}}>
-            <button onClick={toggleWL}           className={`vp-btn${inWL?" on":""}`}>{inWL?"✓ Saved":"+ My List"}</button>
-            <button onClick={()=>{setLiked(l=>!l);showToast(liked?"Unliked":"Liked ❤️");}} className={`vp-btn${liked?" on":""}`}>{liked?"❤️":"🤍"}</button>
-            <button onClick={()=>{navigator.clipboard?.writeText(window.location.href).catch(()=>{});showToast("Link copied!");}} className="vp-btn">↗ Share</button>
-            {isSeries && <button onClick={()=>setShowEp(s=>!s)} className={`vp-btn${showEp?" on":""}`}>≡ Eps</button>}
-            <button onClick={()=>setShowInfo(s=>!s)} className={`vp-btn${showInfo?" on":""}`}>ⓘ Info</button>
-          </div>
+          )}
         </div>
-      )}
 
-      {/* BOTTOM CONTROLS */}
-      {showCtrl && (phase==="playing"||phase==="ended") && (
-        <div style={{position:"absolute",bottom:0,left:0,right:showEp||showInfo?"clamp(240px,30vw,320px)":0,zIndex:30,background:"linear-gradient(to top,rgba(0,0,0,.96),rgba(0,0,0,.5) 70%,transparent)",padding:"0 clamp(14px,3vw,22px) clamp(14px,3vh,22px)",animation:"fadeIn .2s ease"}}>
+        {/* ════ INFO SECTION (scrollable) ════ */}
+        <div className="info-section" style={{flex:1,overflowY:"auto",background:"#0d0d0d",paddingBottom:80}}>
 
-          {/* Progress track */}
-          <div style={{marginBottom:8,position:"relative"}}
-            onMouseMove={e=>{ const r=e.currentTarget.getBoundingClientRect(); setHoverTime(((e.clientX-r.left)/r.width)*(duration||0)); setHoverX(e.clientX-r.left); }}
-            onMouseLeave={()=>setHoverTime(null)}
-          >
-            {hoverTime!==null && <div style={{position:"absolute",bottom:28,left:Math.max(20,Math.min(hoverX-20,300)),background:"rgba(0,0,0,.9)",color:"#fff",fontSize:11,padding:"3px 8px",borderRadius:5,pointerEvents:"none",whiteSpace:"nowrap",zIndex:10}}>{fmt(hoverTime)}</div>}
-            <div style={{position:"relative",height:5,background:"rgba(255,255,255,.18)",borderRadius:3}}>
-              <div style={{position:"absolute",left:0,top:0,height:"100%",background:"rgba(255,255,255,.25)",borderRadius:3,width:bufPct+"%"}}/>
-              <div style={{position:"absolute",left:0,top:0,height:"100%",background:"#e50914",borderRadius:3,width:pct+"%"}}/>
-              <div style={{position:"absolute",top:"50%",transform:"translate(-50%,-50%)",width:14,height:14,borderRadius:"50%",background:"#e50914",left:pct+"%",boxShadow:"0 0 0 3px rgba(229,9,20,.3)"}}/>
+          {/* Content title + meta */}
+          <div style={{padding:"clamp(14px,3vw,20px) clamp(14px,3vw,20px) 0"}}>
+            <div style={{fontWeight:800,fontSize:"clamp(18px,4vw,22px)",marginBottom:4,lineHeight:1.2}}>{content?.title}</div>
+            <div style={{fontSize:13,color:"#888",marginBottom:12}}>
+              {[content?.release_year, content?.duration?`${Math.floor((content.duration||0)/60)}h ${(content.duration||0)%60}m`:null, content?.language?`${content.language.split("/").length} Languages`:null].filter(Boolean).join(" • ")}
             </div>
-            <input ref={progressRef} type="range" className="vp-progress" min={0} max={duration||100} value={progress} step={0.1}
-              onChange={e=>seekTo(+e.target.value)} onMouseDown={()=>setSeeking(true)} onMouseUp={()=>setSeeking(false)} onTouchStart={()=>setSeeking(true)} onTouchEnd={()=>setSeeking(false)}
-              style={{position:"absolute",left:0,top:-4,width:"100%",opacity:0,cursor:"pointer",height:14,zIndex:5,margin:0}}
-            />
-          </div>
 
-          {/* Time labels */}
-          <div style={{display:"flex",justifyContent:"space-between",fontSize:12,color:"rgba(255,255,255,.45)",marginBottom:10}}>
-            <span>{fmt(progress)}</span>
-            {isLive ? <span style={{color:"#e50914",fontWeight:800,fontSize:11,letterSpacing:1}}>⬤ LIVE</span> : <span>-{fmt((duration||0)-progress)}</span>}
-          </div>
-
-          {/* Controls row */}
-          <div style={{display:"flex",alignItems:"center",gap:8}}>
-            {/* Left */}
-            <div style={{display:"flex",alignItems:"center",gap:6,flex:1}}>
-              <button onClick={()=>skip(-10)} className="vp-icon" style={{fontSize:"clamp(16px,3vw,20px)"}}>⏮</button>
-              <button onClick={togglePlay} style={{width:"clamp(44px,7vw,52px)",height:"clamp(44px,7vw,52px)",borderRadius:"50%",background:"#fff",border:"none",fontSize:"clamp(18px,3vw,22px)",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",color:"#111",fontWeight:900,flexShrink:0,boxShadow:"0 4px 16px rgba(0,0,0,.5)"}}>
-                {playing?"⏸":"▶"}
+            {/* Action buttons — Hotstar style */}
+            <div style={{display:"flex",gap:4,marginBottom:16,overflowX:"auto",paddingBottom:4}}>
+              <button onClick={toggleWL} className="action-btn" style={{color:inWL?"#1565c0":"#aaa"}}>
+                <span className="ico">{inWL?"✓":"+"}</span>
+                <span>Watchlist</span>
               </button>
-              <button onClick={()=>skip(10)} className="vp-icon" style={{fontSize:"clamp(16px,3vw,20px)"}}>⏭</button>
-              <button onClick={toggleMute} className="vp-icon" style={{fontSize:18}}>{muted||volume===0?"🔇":volume<0.5?"🔉":"🔊"}</button>
-              <input type="range" className="vp-vol" min={0} max={1} step={0.02} value={muted?0:volume} onChange={e=>changeVol(+e.target.value)} style={{width:"clamp(50px,8vw,80px)",cursor:"pointer"}}/>
-              <span style={{fontSize:11,color:"rgba(255,255,255,.4)",minWidth:28}}>{Math.round((muted?0:volume)*100)}%</span>
+              <button onClick={()=>showToast("Downloading...")} className="action-btn">
+                <span className="ico">⬇</span>
+                <span>Download</span>
+              </button>
+              <button onClick={()=>{navigator.clipboard?.writeText(window.location.href).catch(()=>{});showToast("Link copied!");}} className="action-btn">
+                <span className="ico">↗</span>
+                <span>Share</span>
+              </button>
+              <button onClick={()=>{setLiked(l=>!l);showToast(liked?"Unliked":"Rated ❤️");}} className="action-btn" style={{color:liked?"#e50914":"#aaa"}}>
+                <span className="ico">{liked?"❤️":"🤍"}</span>
+                <span>Rate</span>
+              </button>
             </div>
 
-            {/* Right */}
-            <div style={{display:"flex",gap:5,alignItems:"center",flexShrink:0,position:"relative"}}>
-              {/* Speed */}
-              <div style={{position:"relative"}}>
-                <button onClick={()=>setShowMenu(m=>m==="speed"?null:"speed")} className={`vp-btn${showMenu==="speed"?" on":""}`}>{speed}x</button>
-                {showMenu==="speed" && <div className="vp-menu">{[0.5,0.75,1,1.25,1.5,2].map(s=><button key={s} onClick={()=>changeSpeed(s)} className={speed===s?"on":""}>{s}x {speed===s?"✓":""}</button>)}</div>}
+            {/* Description */}
+            {content?.description && (
+              <div style={{fontSize:13,color:"#999",lineHeight:1.6,marginBottom:16}}>{content.description}</div>
+            )}
+          </div>
+
+          {/* TABS — Watch More / Episodes */}
+          <div style={{borderBottom:"1px solid #1e1e1e",display:"flex",overflowX:"auto",padding:"0 clamp(14px,3vw,20px)"}}>
+            <button className={`settings-tab on`} style={{color:"#fff",borderBottomColor:"#fff",fontWeight:700}}>Watch More</button>
+            {isSeries && <button className="settings-tab" style={{}}>Episodes</button>}
+            <button className="settings-tab">Related</button>
+          </div>
+
+          {/* EPISODES LIST */}
+          {isSeries && (
+            <div style={{padding:"0 0 8px"}}>
+              {/* Season selector */}
+              <div style={{display:"flex",gap:0,overflowX:"auto",padding:"12px clamp(14px,3vw,20px) 4px",borderBottom:"1px solid #1e1e1e"}}>
+                {seasons.map(s=>(
+                  <button key={s} onClick={()=>setSelSeason(s)} style={{background:"none",border:"none",color:selSeason===s?"#fff":"#666",fontWeight:selSeason===s?700:500,fontSize:14,padding:"6px 16px 8px",cursor:"pointer",borderBottom:`2px solid ${selSeason===s?"#fff":"transparent"}`,fontFamily:"'Inter',sans-serif",whiteSpace:"nowrap",transition:"all .15s"}}>
+                    Season {s}
+                  </button>
+                ))}
               </div>
-              {/* Audio */}
-              <div style={{position:"relative"}}>
-                <button onClick={()=>setShowMenu(m=>m==="audio"?null:"audio")} className={`vp-btn${showMenu==="audio"?" on":""}`}>🎙️ {audioLang}</button>
-                {showMenu==="audio" && <div className="vp-menu">{["Hindi","English","Kannada","Tamil","Telugu","Bengali","Malayalam","Punjabi","Marathi"].map(l=><button key={l} onClick={()=>{setAudioLang(l);setShowMenu(null);showToast("Audio: "+l);}} className={audioLang===l?"on":""}>{l} {audioLang===l?"✓":""}</button>)}</div>}
-              </div>
-              {/* Subtitles */}
-              <div style={{position:"relative"}}>
-                <button onClick={()=>setShowMenu(m=>m==="sub"?null:"sub")} className={`vp-btn${subtitle!=="Off"?" on":""}`}>CC</button>
-                {showMenu==="sub" && <div className="vp-menu">{["Off","English","Hindi","Kannada","Tamil","Telugu"].map(s=><button key={s} onClick={()=>{setSub(s);setShowMenu(null);showToast("Subtitle: "+s);}} className={subtitle===s?"on":""}>{s} {subtitle===s?"✓":""}</button>)}</div>}
-              </div>
-              {/* Quality */}
-              <div style={{position:"relative"}}>
-                <button onClick={()=>setShowMenu(m=>m==="quality"?null:"quality")} className={`vp-btn${showMenu==="quality"?" on":""}`}>{quality}</button>
-                {showMenu==="quality" && <div className="vp-menu">{["Auto","4K","1080p","720p","480p","360p"].map(q=><button key={q} onClick={()=>{setQuality(q);setShowMenu(null);showToast("Quality: "+q);}} className={quality===q?"on":""}>{q} {quality===q?"✓":""}</button>)}</div>}
-              </div>
-              <button onClick={togglePiP} className={`vp-btn${pip?" on":""}`} title="Picture-in-Picture">⧉</button>
-              <button onClick={()=>showToast("Downloading...")} className="vp-btn">⬇</button>
-              <button onClick={()=>showToast("Casting...")} className="vp-btn">📺</button>
-              <button onClick={toggleFS} className="vp-btn">{fullscreen?"⊡":"⛶"}</button>
+
+              {/* Episode list */}
+              {episodes.map(ep=>(
+                <div key={ep.ep} className="ep-row" onClick={()=>showToast(`Playing S${selSeason}E${ep.ep}`)}>
+                  {/* Thumbnail */}
+                  <div style={{width:"clamp(80px,20vw,110px)",height:"clamp(50px,13vw,68px)",borderRadius:8,background:content?.thumbnail?`url(${content.thumbnail}) center/cover`:"#1e1e1e",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,position:"relative",overflow:"hidden"}}>
+                    {!content?.thumbnail && <span style={{fontSize:20,opacity:.4}}>🎬</span>}
+                    {/* Progress bar */}
+                    {ep.progress>0 && (
+                      <div style={{position:"absolute",bottom:0,left:0,right:0,height:3,background:"rgba(255,255,255,.15)"}}>
+                        <div style={{height:"100%",width:`${ep.progress}%`,background:"#1565c0"}}/>
+                      </div>
+                    )}
+                    {/* Play icon */}
+                    <div style={{position:"absolute",inset:0,display:"flex",alignItems:"center",justifyContent:"center",background:"rgba(0,0,0,.3)"}}>
+                      <div style={{width:26,height:26,borderRadius:"50%",background:"rgba(255,255,255,.15)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:11}}>▶</div>
+                    </div>
+                  </div>
+                  {/* Info */}
+                  <div style={{flex:1,minWidth:0}}>
+                    <div style={{fontWeight:600,fontSize:14,marginBottom:3}}>{ep.title}</div>
+                    <div style={{fontSize:12,color:"#666"}}>S{selSeason} E{ep.ep} • {ep.date} • {ep.dur}</div>
+                    {ep.progress>0 && <div style={{fontSize:11,color:"#1565c0",marginTop:3}}>{ep.progress}% watched</div>}
+                  </div>
+                  {/* Download */}
+                  <button onClick={e=>{e.stopPropagation();showToast(`Downloading E${ep.ep}...`);}} style={{background:"none",border:"none",color:"#888",fontSize:18,cursor:"pointer",padding:8,flexShrink:0}}>⬇</button>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* TOP 10 section */}
+          <div style={{padding:"16px clamp(14px,3vw,20px) 8px"}}>
+            <div style={{fontWeight:700,fontSize:16,marginBottom:12}}>
+              Top 10 in India Today{content?.language?" - "+content.language.split("/")[0]:""}
+            </div>
+            <div style={{display:"flex",gap:10,overflowX:"auto",paddingBottom:6}}>
+              {[1,2,3,4,5].map(n=>(
+                <div key={n} style={{flexShrink:0,width:"clamp(100px,22vw,130px)",position:"relative",cursor:"pointer"}}>
+                  <div style={{height:"clamp(130px,28vw,160px)",background:"#1e1e1e",borderRadius:6,display:"flex",alignItems:"center",justifyContent:"center",fontSize:28,marginBottom:0}}>🎬</div>
+                  <div style={{fontFamily:"'Bebas Neue',serif",fontSize:"clamp(52px,12vw,70px)",color:"#111",WebkitTextStroke:"1.5px #333",position:"absolute",bottom:-10,left:-4,lineHeight:1,fontWeight:900}}>{n}</div>
+                  <div style={{marginTop:14,padding:"0 2px"}}>
+                    <div style={{fontSize:10,fontWeight:700,color:"#888",textTransform:"uppercase",letterSpacing:.5,marginBottom:3}}>ಕನ್ನಡ</div>
+                    <button style={{width:"100%",background:"transparent",border:"1px solid #333",color:"#aaa",borderRadius:5,padding:"5px 0",fontSize:11,cursor:"pointer"}}>+ Watchlist</button>
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
         </div>
-      )}
+      </div>
 
-      {/* ENDED */}
-      {phase==="ended" && (
-        <div style={{position:"absolute",inset:0,background:"rgba(0,0,0,.88)",display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",gap:18,padding:20,animation:"fadeIn .3s ease",zIndex:70}}>
-          <div style={{fontSize:52}}>🎬</div>
-          <div style={{fontSize:"clamp(16px,4vw,20px)",fontWeight:800,textAlign:"center"}}>{content?.title}</div>
-          <div style={{color:"#555",fontSize:13}}>You finished watching</div>
-          <div style={{display:"flex",gap:12,flexWrap:"wrap",justifyContent:"center"}}>
-            <button onClick={()=>{setPhase("loading");setProgress(0);setMidDone([]);setNextCount(null);initPlayer();}} style={{background:"#fff",color:"#111",border:"none",borderRadius:10,padding:"12px 24px",fontWeight:800,fontSize:14,cursor:"pointer"}}>▶ Watch Again</button>
-            {onNext && <button onClick={onNext} style={{background:"#e50914",color:"#fff",border:"none",borderRadius:10,padding:"12px 24px",fontWeight:800,fontSize:14,cursor:"pointer"}}>Next →</button>}
-            <button onClick={onClose} style={{background:"rgba(255,255,255,.1)",color:"#fff",border:"1px solid rgba(255,255,255,.15)",borderRadius:10,padding:"12px 20px",fontSize:14,cursor:"pointer"}}>✕ Close</button>
+      {/* ════ SETTINGS SHEET — Hotstar style ════ */}
+      {showSettings && (
+        <>
+          <div style={{position:"absolute",inset:0,zIndex:800,background:"rgba(0,0,0,.6)",backdropFilter:"blur(4px)"}} onClick={()=>setShowSettings(false)}/>
+          <div style={{position:"absolute",bottom:0,left:0,right:0,zIndex:801,background:"#1a1a1a",borderRadius:"16px 16px 0 0",animation:"slideUp .3s ease",maxHeight:"75vh",display:"flex",flexDirection:"column"}}>
+            {/* Handle */}
+            <div style={{display:"flex",justifyContent:"center",padding:"12px 0 8px"}}><div style={{width:40,height:4,borderRadius:2,background:"#444"}}/></div>
+            {/* Header */}
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"0 20px 12px"}}>
+              <div style={{fontWeight:700,fontSize:17}}>Settings</div>
+              <button onClick={()=>showToast("Issue reported!")} style={{background:"none",border:"none",color:"#1565c0",fontSize:13,fontWeight:600,cursor:"pointer",fontFamily:"'Inter',sans-serif"}}>Report an Issue</button>
+            </div>
+            {/* Tabs */}
+            <div style={{display:"flex",overflowX:"auto",borderBottom:"1px solid #2a2a2a",padding:"0 20px",gap:0}}>
+              {["quality","audio","subtitles","speed"].map(t=>(
+                <button key={t} className={`settings-tab${settingsTab===t?" on":""}`} onClick={()=>setSettingsTab(t)} style={{textTransform:"capitalize"}}>
+                  {t==="audio"?"Audio Language":t.charAt(0).toUpperCase()+t.slice(1)}
+                </button>
+              ))}
+            </div>
+            {/* Options */}
+            <div style={{overflowY:"auto",flex:1,paddingBottom:20}}>
+              {settingsTab==="quality" && QUALITY_OPTIONS.map(q=>(
+                <div key={q.id} className="settings-opt" onClick={()=>{if(q.lock&&!isPremium){showToast("Upgrade to Premium for "+q.label);}else{setQuality(q.id);setShowSettings(false);showToast("Quality: "+q.label);}}}>
+                  {quality===q.id ? <span style={{color:"#1565c0",fontSize:18,flexShrink:0}}>✓</span> : <span style={{width:18,flexShrink:0}}/>}
+                  <div style={{flex:1}}>
+                    <div style={{fontWeight:600,fontSize:14,display:"flex",alignItems:"center",gap:8}}>
+                      {q.label}
+                      {q.lock&&!isPremium && <span style={{background:"#f59e0b",color:"#000",fontSize:9,fontWeight:800,padding:"1px 6px",borderRadius:3}}>UPGRADE</span>}
+                    </div>
+                    <div style={{fontSize:12,color:"#666",marginTop:1}}>{q.sub}</div>
+                  </div>
+                  {quality===q.id && <div style={{width:6,height:6,borderRadius:"50%",background:"#1565c0",flexShrink:0}}/>}
+                </div>
+              ))}
+              {settingsTab==="audio" && AUDIO_LANGS.map(l=>(
+                <div key={l} className="settings-opt" onClick={()=>{setAudioLang(l);setShowSettings(false);showToast("Audio: "+l);}}>
+                  {audioLang===l ? <span style={{color:"#1565c0",fontSize:18,flexShrink:0}}>✓</span> : <span style={{width:18,flexShrink:0}}/>}
+                  <div style={{fontWeight:audioLang===l?700:400,fontSize:14}}>{l}</div>
+                </div>
+              ))}
+              {settingsTab==="subtitles" && SUBTITLE_LANGS.map(l=>(
+                <div key={l} className="settings-opt" onClick={()=>{setSub(l);setShowSettings(false);showToast("Subtitles: "+l);}}>
+                  {subtitle===l ? <span style={{color:"#1565c0",fontSize:18,flexShrink:0}}>✓</span> : <span style={{width:18,flexShrink:0}}/>}
+                  <div style={{fontWeight:subtitle===l?700:400,fontSize:14}}>{l}</div>
+                </div>
+              ))}
+              {settingsTab==="speed" && SPEEDS.map(s=>(
+                <div key={s.v} className="settings-opt" onClick={()=>{applySpeed(s.v);setShowSettings(false);showToast("Speed: "+s.l);}}>
+                  {speed===s.v ? <span style={{color:"#1565c0",fontSize:18,flexShrink:0}}>✓</span> : <span style={{width:18,flexShrink:0}}/>}
+                  <div style={{fontWeight:speed===s.v?700:400,fontSize:14}}>{s.l}</div>
+                </div>
+              ))}
+            </div>
           </div>
-        </div>
+        </>
       )}
-
-      {showMenu && <div style={{position:"absolute",inset:0,zIndex:29}} onClick={()=>setShowMenu(null)}/>}
     </div>
   );
 }
