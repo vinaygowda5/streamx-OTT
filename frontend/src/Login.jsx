@@ -1,8 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { supabase, db } from "./supabase.js";
 
-// ── Admin numbers ─────────────────────────
-const ADMIN_PHONES = ["+918088820924", "+919000000000", "+919000000001"];
+const ADMIN_PHONES = ["+918660570052", "+919000000000", "+919000000001"];
 
 export default function Login({ onLogin }) {
   const [step,    setStep]    = useState("phone");
@@ -12,386 +11,195 @@ export default function Login({ onLogin }) {
   const [error,   setError]   = useState("");
   const [loading, setLoading] = useState(false);
   const [timer,   setTimer]   = useState(0);
-  const otpRefs = [useRef(),useRef(),useRef(),useRef(),useRef(),useRef()];
-
+  const otpRefs = Array.from({length:6}, ()=>useRef());
   const fullPhone = "+91" + phone.replace(/\D/g,"").slice(-10);
 
-  useEffect(() => {
-    if (timer <= 0) return;
-    const t = setTimeout(() => setTimer(s => s - 1), 1000);
-    return () => clearTimeout(t);
-  }, [timer]);
+  useEffect(()=>{
+    if(timer<=0) return;
+    const t = setTimeout(()=>setTimer(s=>s-1),1000);
+    return()=>clearTimeout(t);
+  },[timer]);
 
-  // ── Send OTP ────────────────────────────
-  async function sendOTP() {
+  async function sendOTP(){
     setError("");
-    const digits = phone.replace(/\D/g,"");
-    if (digits.length < 10) {
-      setError("Enter valid 10-digit mobile number");
-      return;
-    }
+    if(phone.replace(/\D/g,"").length < 10){ setError("Enter valid 10-digit number"); return; }
     setLoading(true);
-    try {
-      const { error } = await supabase.auth.signInWithOtp({
-        phone: fullPhone,
-      });
-      if (error) console.log("Supabase OTP:", error.message);
-    } catch (e) {
-      console.log("OTP send error:", e.message);
-    }
-    // Always go to OTP screen
-    setStep("otp");
-    setTimer(30);
+    try { await supabase.auth.signInWithOtp({ phone: fullPhone }); } catch(e){}
+    setStep("otp"); setTimer(30);
     setOtp(["","","","","",""]);
     setLoading(false);
-    setTimeout(() => otpRefs[0].current?.focus(), 100);
+    setTimeout(()=>otpRefs[0].current?.focus(),100);
   }
 
-  // ── Verify OTP ──────────────────────────
-  async function verifyOTP() {
-    setError("");
-    const code = otp.join("");
-    if (code.length < 6) {
-      setError("Enter complete 6-digit OTP");
-      return;
-    }
+  async function verifyOTPCode(code){
+    if(code.length<6) return;
     setLoading(true);
-
-    let verified = false;
-
-    // Try real Supabase OTP
+    let ok = false;
     try {
-      const { data, error } = await supabase.auth.verifyOtp({
-        phone: fullPhone, token: code, type: "sms",
-      });
-      if (!error && data?.user) verified = true;
-    } catch (e) {}
-
-    // Test mode — 123456 always works
-    if (!verified && code === "123456") verified = true;
-
-    if (!verified) {
-      setError("Invalid OTP. Please try again.");
-      setLoading(false);
-      return;
-    }
-
-    // Check if user exists
+      const { data, error } = await supabase.auth.verifyOtp({ phone:fullPhone, token:code, type:"sms" });
+      if(!error && data?.user) ok = true;
+    } catch(e){}
+    if(!ok && code==="123456") ok = true;
+    if(!ok){ setError("Wrong OTP. Try again."); setLoading(false); return; }
     try {
-      const existing = await db.getUserByPhone(fullPhone).catch(() => null);
-      if (existing) {
-        // Existing user — login directly
-        onLogin(existing);
-        setLoading(false);
-        return;
-      }
-    } catch (e) {}
-
-    // New user — ask for name
-    setStep("name");
-    setLoading(false);
+      const u = await db.getUserByPhone(fullPhone).catch(()=>null);
+      if(u?.name){ onLogin(u); setLoading(false); return; }
+    } catch(e){}
+    setStep("name"); setLoading(false);
   }
 
-  // ── Create Account ──────────────────────
-  async function createAccount() {
+  function handleOTP(i, v){
+    if(!/^\d?$/.test(v)) return;
+    const n=[...otp]; n[i]=v; setOtp(n);
+    if(v && i<5) otpRefs[i+1].current?.focus();
+    if(!v && i>0) otpRefs[i-1].current?.focus();
+    if(v && i===5) setTimeout(()=>verifyOTPCode([...otp.slice(0,5),v].join("")),80);
+  }
+
+  function handlePaste(e){
+    const p=e.clipboardData.getData("text").replace(/\D/g,"").slice(0,6);
+    if(p.length===6){ setOtp(p.split("")); otpRefs[5].current?.focus(); }
+  }
+
+  async function createAccount(){
     setError("");
-    if (!name.trim()) {
-      setError("Please enter your name");
-      return;
-    }
+    if(!name.trim()){ setError("Enter your name"); return; }
     setLoading(true);
-
     try {
-      // Check again if user exists (race condition)
-      const existing = await db.getUserByPhone(fullPhone).catch(() => null);
-      if (existing) {
-        const updated = existing.name
-          ? existing
-          : await db.updateUser(existing.id, { name: name.trim() }).catch(() => existing);
-        onLogin(updated);
-        setLoading(false);
-        return;
-      }
-
-      // Determine role
       const isAdmin = ADMIN_PHONES.includes(fullPhone);
-
-      // Create new user in Supabase DB
-      const newUser = await db.createUser({
-        name:      name.trim(),
-        phone:     fullPhone,
-        role:      isAdmin ? "admin" : "user",
-        plan:      isAdmin ? "premium" : "free",
-        is_active: true,
-      });
-
-      // Create default profile
-      await supabase.from("profiles").insert({
-        user_id: newUser.id,
-        name:    name.trim(),
-        emoji:   "😊",
-        color:   "#e50914",
-      }).catch(() => {});
-
-      // Welcome notification
-      await supabase.from("notifications").insert({
-        user_id: newUser.id,
-        type:    "welcome",
-        title:   "Welcome to StreamX! 🎉",
-        message: "Start watching amazing content now.",
-      }).catch(() => {});
-
+      let u = await db.getUserByPhone(fullPhone).catch(()=>null);
+      if(u){ u = u.name ? u : await db.updateUser(u.id,{name:name.trim()}).catch(()=>u); onLogin(u); setLoading(false); return; }
+      const newUser = await db.createUser({ name:name.trim(), phone:fullPhone, role:isAdmin?"admin":"user", plan:isAdmin?"premium":"free", is_active:true });
+      await supabase.from("notifications").insert({ user_id:newUser.id, type:"welcome", title:"Welcome to StreamX! 🎉", message:"Enjoy unlimited streaming." }).catch(()=>{});
       onLogin(newUser);
-    } catch (e) {
-      console.error("Create account error:", e);
-      // Fallback — let them in anyway
-      const isAdmin = ADMIN_PHONES.includes(fullPhone);
-      const fallback = {
-        id:    "temp_" + Date.now(),
-        name:  name.trim(),
-        phone: fullPhone,
-        role:  isAdmin ? "admin" : "user",
-        plan:  isAdmin ? "premium" : "free",
-        is_active: true,
-      };
-      onLogin(fallback);
+    } catch(e){
+      onLogin({ id:"tmp_"+Date.now(), name:name.trim(), phone:fullPhone, role:ADMIN_PHONES.includes(fullPhone)?"admin":"user", plan:"free" });
     }
     setLoading(false);
   }
 
-  function handleOtpChange(i, v) {
-    if (!/^\d?$/.test(v)) return;
-    const n = [...otp];
-    n[i] = v;
-    setOtp(n);
-    if (v && i < 5) otpRefs[i+1].current?.focus();
-    if (!v && i > 0) otpRefs[i-1].current?.focus();
-  }
-
-  function handlePaste(e) {
-    const p = e.clipboardData.getData("text").replace(/\D/g,"").slice(0,6);
-    if (p.length === 6) {
-      setOtp(p.split(""));
-      otpRefs[5].current?.focus();
-    }
-  }
-
-  const inp = {
-    background:"#0a0a14",
-    border:"1px solid #1a1a2c",
-    borderRadius:8, color:"#fff",
-    fontSize:15, outline:"none",
-    fontFamily:"Inter,sans-serif",
-  };
+  const inp = { background:"#0f0f18", border:"1px solid #1e1e2e", borderRadius:10, color:"#fff", fontSize:16, outline:"none", fontFamily:"Inter,sans-serif", transition:"border-color .2s" };
+  const canSend = phone.replace(/\D/g,"").length===10 && !loading;
+  const canVerify = otp.join("").length===6 && !loading;
+  const canCreate = !!name.trim() && !loading;
 
   return (
-    <div style={{
-      minHeight:"100vh",
-      background:"linear-gradient(135deg,#07070c 0%,#0f0a14 100%)",
-      display:"flex", alignItems:"center",
-      justifyContent:"center", padding:20,
-      fontFamily:"Inter,sans-serif",
-    }}>
-      <div style={{
-        background:"rgba(15,15,24,.95)",
-        border:"1px solid #1a1a26",
-        borderRadius:24,
-        padding:"40px 28px",
-        width:"100%", maxWidth:400,
-        boxShadow:"0 24px 64px rgba(0,0,0,.6)",
-      }}>
-        {/* Logo */}
-        <div style={{textAlign:"center",marginBottom:32}}>
-          <div style={{fontWeight:900,fontSize:38,letterSpacing:2,marginBottom:6}}>
-            <span style={{color:"#e50914"}}>STREAM</span>
-            <span style={{color:"#fff"}}>X</span>
+    <div style={{minHeight:"100vh",background:"#07070c",display:"flex",alignItems:"center",justifyContent:"center",padding:16,fontFamily:"Inter,sans-serif"}}>
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
+        *{box-sizing:border-box;}
+        @keyframes fadeUp{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:translateY(0)}}
+        input:focus{border-color:#e50914!important;}
+      `}</style>
+
+      <div style={{background:"rgba(13,13,22,.98)",border:"1px solid #1a1a28",borderRadius:22,padding:"36px 24px",width:"100%",maxWidth:360,animation:"fadeUp .4s ease"}}>
+
+        {/* LOGO */}
+        <div style={{textAlign:"center",marginBottom:30}}>
+          <div style={{fontWeight:900,fontSize:36,letterSpacing:2,marginBottom:5,lineHeight:1}}>
+            <span style={{color:"#e50914"}}>STREAM</span><span style={{color:"#fff"}}>X</span>
           </div>
-          <div style={{fontSize:12,color:"#444",letterSpacing:.5}}>
-            {step==="phone" && "India's Premium OTT Platform"}
-            {step==="otp"   && "Verify your mobile number"}
-            {step==="name"  && "Create your account"}
-          </div>
+          <div style={{fontSize:12,color:"#3a3a4a",fontWeight:500}}>India's Premium OTT Platform</div>
         </div>
 
-        {/* ── PHONE STEP ── */}
-        {step === "phone" && (
-          <div>
-            <div style={{fontSize:11,color:"#555",fontWeight:700,textTransform:"uppercase",letterSpacing:1,marginBottom:10}}>
-              Mobile Number
-            </div>
-            <div style={{display:"flex",gap:10,marginBottom:24}}>
-              <div style={{...inp, padding:"14px 14px", flexShrink:0, display:"flex", alignItems:"center", gap:8, fontSize:14, fontWeight:700, color:"#aaa"}}>
-                🇮🇳 <span style={{color:"#fff"}}>+91</span>
+        {/* ── STEP 1: PHONE ── */}
+        {step==="phone" && (
+          <div style={{animation:"fadeUp .3s ease"}}>
+            <div style={{fontSize:10,color:"#3a3a4a",fontWeight:700,letterSpacing:1.5,textTransform:"uppercase",marginBottom:10}}>Mobile Number</div>
+
+            {/* Phone input row — FIXED WIDTH */}
+            <div style={{display:"flex",gap:8,marginBottom:16}}>
+              {/* Country code box — fixed small width */}
+              <div style={{...inp,padding:"13px 12px",display:"flex",alignItems:"center",gap:6,flexShrink:0,width:80,justifyContent:"center"}}>
+                <span style={{fontSize:18}}>🇮🇳</span>
+                <span style={{color:"#aaa",fontSize:14,fontWeight:700}}>+91</span>
               </div>
+              {/* Number input — takes remaining space */}
               <input
                 value={phone}
-                onChange={e => setPhone(e.target.value.replace(/\D/g,"").slice(0,10))}
+                onChange={e=>setPhone(e.target.value.replace(/\D/g,"").slice(0,10))}
                 placeholder="Enter mobile number"
-                type="tel"
-                maxLength={10}
-                style={{...inp, flex:1, padding:"14px 16px", fontSize:16}}
-                onKeyDown={e => e.key==="Enter" && sendOTP()}
-                autoFocus
+                type="tel" maxLength={10} autoFocus
+                onKeyDown={e=>e.key==="Enter"&&canSend&&sendOTP()}
+                style={{...inp,flex:1,padding:"13px 14px",fontSize:15}}
               />
             </div>
 
-            {error && <ErrBox>{error}</ErrBox>}
+            {error && <div style={{background:"rgba(248,113,113,.08)",border:"1px solid rgba(248,113,113,.2)",borderRadius:8,padding:"10px 12px",marginBottom:14,color:"#f87171",fontSize:12}}>❌ {error}</div>}
 
-            <button
-              onClick={sendOTP}
-              disabled={loading || phone.replace(/\D/g,"").length < 10}
-              style={{
-                width:"100%",
-                background: phone.replace(/\D/g,"").length===10
-                  ? "linear-gradient(135deg,#e50914,#ff4444)"
-                  : "#1a1a26",
-                color:"#fff", border:"none", borderRadius:12,
-                padding:"16px 0", fontWeight:800, fontSize:16,
-                cursor: phone.replace(/\D/g,"").length===10 ? "pointer" : "not-allowed",
-                fontFamily:"Inter,sans-serif", transition:"all .2s",
-                letterSpacing:.5,
-              }}
-            >
-              {loading ? "Sending OTP..." : "Get OTP →"}
+            <button onClick={sendOTP} disabled={!canSend}
+              style={{width:"100%",background:canSend?"linear-gradient(135deg,#e50914,#c00)":"#1a1a26",color:"#fff",border:"none",borderRadius:12,padding:"15px",fontWeight:800,fontSize:15,cursor:canSend?"pointer":"not-allowed",fontFamily:"Inter,sans-serif",transition:"all .2s"}}>
+              {loading?"Sending OTP...":"Get OTP →"}
             </button>
 
-            <div style={{textAlign:"center",marginTop:20,fontSize:11,color:"#2a2a36",lineHeight:1.6}}>
+            <div style={{textAlign:"center",marginTop:18,fontSize:11,color:"#252535",lineHeight:1.7}}>
               By continuing, you agree to StreamX<br/>Terms of Use and Privacy Policy
             </div>
           </div>
         )}
 
-        {/* ── OTP STEP ── */}
-        {step === "otp" && (
-          <div>
-            <div style={{textAlign:"center",marginBottom:28}}>
-              <div style={{
-                width:64,height:64,borderRadius:"50%",
-                background:"rgba(229,9,20,.12)",
-                border:"2px solid rgba(229,9,20,.3)",
-                display:"flex",alignItems:"center",justifyContent:"center",
-                fontSize:28, margin:"0 auto 16px",
-              }}>📱</div>
-              <div style={{fontSize:14,color:"#aaa",marginBottom:4}}>OTP sent to</div>
-              <div style={{fontSize:18,fontWeight:800,color:"#fff"}}>+91 {phone}</div>
-              <button
-                onClick={() => {setStep("phone"); setError(""); setOtp(["","","","","",""]);}}
-                style={{background:"none",border:"none",color:"#e50914",fontSize:12,cursor:"pointer",marginTop:6,fontWeight:600}}
-              >
-                ← Change number
-              </button>
+        {/* ── STEP 2: OTP ── */}
+        {step==="otp" && (
+          <div style={{animation:"fadeUp .3s ease"}}>
+            <div style={{textAlign:"center",marginBottom:24}}>
+              <div style={{width:56,height:56,borderRadius:"50%",background:"rgba(229,9,20,.1)",border:"2px solid rgba(229,9,20,.25)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:24,margin:"0 auto 12px"}}>📱</div>
+              <div style={{fontSize:13,color:"#555",marginBottom:3}}>OTP sent to</div>
+              <div style={{fontSize:18,fontWeight:800,marginBottom:4}}>+91 {phone}</div>
+              <button onClick={()=>{setStep("phone");setError("");}} style={{background:"none",border:"none",color:"#e50914",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"Inter,sans-serif"}}>← Change number</button>
             </div>
 
-            <div style={{display:"flex",gap:8,justifyContent:"center",marginBottom:24}}>
-              {otp.map((v,i) => (
-                <input
-                  key={i}
-                  ref={otpRefs[i]}
-                  value={v}
-                  onChange={e => handleOtpChange(i, e.target.value)}
+            {/* 6-digit OTP boxes */}
+            <div style={{display:"flex",gap:8,justifyContent:"center",marginBottom:20}}>
+              {otp.map((v,i)=>(
+                <input key={i} ref={otpRefs[i]} value={v}
+                  onChange={e=>handleOTP(i,e.target.value)}
                   onPaste={handlePaste}
-                  maxLength={1}
-                  type="tel"
-                  inputMode="numeric"
-                  style={{
-                    width:48, height:56, borderRadius:10,
-                    background:"#0a0a14",
-                    border:`2px solid ${v ? "#e50914" : "#1a1a2c"}`,
-                    color:"#fff", fontSize:24,
-                    textAlign:"center", outline:"none",
-                    fontFamily:"Inter,sans-serif",
-                    transition:"border-color .2s",
-                  }}
+                  maxLength={1} type="tel" inputMode="numeric"
+                  style={{width:46,height:54,borderRadius:10,background:"#0f0f18",border:`2px solid ${v?"#e50914":"#1e1e2e"}`,color:"#fff",fontSize:22,textAlign:"center",outline:"none",fontFamily:"Inter,sans-serif",transition:"border-color .2s"}}
                 />
               ))}
             </div>
 
-            {error && <ErrBox>{error}</ErrBox>}
+            {error && <div style={{background:"rgba(248,113,113,.08)",border:"1px solid rgba(248,113,113,.2)",borderRadius:8,padding:"10px 12px",marginBottom:14,color:"#f87171",fontSize:12,textAlign:"center"}}>❌ {error}</div>}
 
-            <button
-              onClick={verifyOTP}
-              disabled={loading || otp.join("").length < 6}
-              style={{
-                width:"100%",
-                background: otp.join("").length===6
-                  ? "linear-gradient(135deg,#e50914,#ff4444)"
-                  : "#1a1a26",
-                color:"#fff", border:"none", borderRadius:12,
-                padding:"16px 0", fontWeight:800, fontSize:16,
-                cursor: otp.join("").length===6 ? "pointer" : "not-allowed",
-                fontFamily:"Inter,sans-serif", marginBottom:16,
-              }}
-            >
-              {loading ? "Verifying..." : "Verify OTP →"}
+            <button onClick={()=>verifyOTPCode(otp.join(""))} disabled={!canVerify}
+              style={{width:"100%",background:canVerify?"linear-gradient(135deg,#e50914,#c00)":"#1a1a26",color:"#fff",border:"none",borderRadius:12,padding:"15px",fontWeight:800,fontSize:15,cursor:canVerify?"pointer":"not-allowed",fontFamily:"Inter,sans-serif",transition:"all .2s"}}>
+              {loading?"Verifying...":"Verify OTP →"}
             </button>
 
-            <div style={{textAlign:"center",fontSize:13,color:"#555"}}>
-              {timer > 0
-                ? <span>Resend OTP in <span style={{color:"#e50914",fontWeight:700}}>{timer}s</span></span>
-                : <button
-                    onClick={() => {sendOTP(); setOtp(["","","","","",""]);}}
-                    style={{background:"none",border:"none",color:"#e50914",cursor:"pointer",fontSize:13,fontWeight:700}}
-                  >
-                    Resend OTP
-                  </button>
+            <div style={{textAlign:"center",marginTop:14,fontSize:13,color:"#3a3a4a"}}>
+              {timer>0
+                ? <>Resend in <span style={{color:"#e50914",fontWeight:700}}>{timer}s</span></>
+                : <button onClick={()=>{sendOTP();setOtp(["","","","","",""]);}} style={{background:"none",border:"none",color:"#e50914",cursor:"pointer",fontSize:13,fontWeight:700,fontFamily:"Inter,sans-serif"}}>Resend OTP</button>
               }
             </div>
-            <div style={{textAlign:"center",marginTop:8,fontSize:10,color:"#1f1f2e"}}>
-              Test: OTP 123456
-            </div>
+            <div style={{textAlign:"center",marginTop:6,fontSize:10,color:"#1f1f2e"}}>Test OTP: 123456</div>
           </div>
         )}
 
-        {/* ── NAME STEP ── */}
-        {step === "name" && (
-          <div>
-            <div style={{textAlign:"center",marginBottom:28}}>
-              <div style={{fontSize:52,marginBottom:12}}>👋</div>
-              <div style={{fontSize:18,fontWeight:700,marginBottom:4}}>Welcome to StreamX!</div>
+        {/* ── STEP 3: NAME ── */}
+        {step==="name" && (
+          <div style={{animation:"fadeUp .3s ease"}}>
+            <div style={{textAlign:"center",marginBottom:24}}>
+              <div style={{fontSize:48,marginBottom:10}}>👋</div>
+              <div style={{fontSize:20,fontWeight:800,marginBottom:4}}>Welcome!</div>
               <div style={{fontSize:13,color:"#555"}}>What should we call you?</div>
             </div>
-
             <input
-              value={name}
-              onChange={e => setName(e.target.value)}
+              value={name} onChange={e=>setName(e.target.value)}
               placeholder="Enter your full name"
-              style={{...inp, width:"100%", padding:"14px 16px", fontSize:15, marginBottom:20}}
               autoFocus
-              onKeyDown={e => e.key==="Enter" && createAccount()}
+              onKeyDown={e=>e.key==="Enter"&&canCreate&&createAccount()}
+              style={{...inp,width:"100%",padding:"14px 16px",fontSize:15,marginBottom:16}}
             />
-
-            {error && <ErrBox>{error}</ErrBox>}
-
-            <button
-              onClick={createAccount}
-              disabled={loading || !name.trim()}
-              style={{
-                width:"100%",
-                background: name.trim()
-                  ? "linear-gradient(135deg,#e50914,#ff4444)"
-                  : "#1a1a26",
-                color:"#fff", border:"none", borderRadius:12,
-                padding:"16px 0", fontWeight:800, fontSize:16,
-                cursor: name.trim() ? "pointer" : "not-allowed",
-                fontFamily:"Inter,sans-serif",
-              }}
-            >
-              {loading ? "Creating account..." : "Start Watching 🎬"}
+            {error && <div style={{background:"rgba(248,113,113,.08)",border:"1px solid rgba(248,113,113,.2)",borderRadius:8,padding:"10px 12px",marginBottom:14,color:"#f87171",fontSize:12}}>❌ {error}</div>}
+            <button onClick={createAccount} disabled={!canCreate}
+              style={{width:"100%",background:canCreate?"linear-gradient(135deg,#e50914,#c00)":"#1a1a26",color:"#fff",border:"none",borderRadius:12,padding:"15px",fontWeight:800,fontSize:15,cursor:canCreate?"pointer":"not-allowed",fontFamily:"Inter,sans-serif",transition:"all .2s"}}>
+              {loading?"Creating account...":"Start Watching 🎬"}
             </button>
           </div>
         )}
       </div>
     </div>
-  );
-}
-
-function ErrBox({ children }) {
-  return (
-    <div style={{
-      background:"rgba(248,113,113,.1)",
-      border:"1px solid rgba(248,113,113,.3)",
-      borderRadius:8, padding:"10px 14px",
-      marginBottom:16, color:"#f87171", fontSize:13,
-    }}>❌ {children}</div>
   );
 }
