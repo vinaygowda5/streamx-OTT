@@ -7,13 +7,9 @@ export const supabase = createClient(URL, KEY);
 
 export const db = {
 
-  /* ── USERS ─────────────── */
+  /* ── USERS ── */
   async getUserByPhone(phone) {
     const { data } = await supabase.from("users").select("*").eq("phone", phone).single();
-    return data;
-  },
-  async getUserByEmail(email) {
-    const { data } = await supabase.from("users").select("*").eq("email", email).single();
     return data;
   },
   async getUserById(id) {
@@ -31,31 +27,15 @@ export const db = {
     return data;
   },
 
-  /* ── CONTENT ────────────── */
+  /* ── CONTENT ── */
   async getAllContent() {
-    const { data } = await supabase.from("content").select("*").eq("is_active", true).order("views", { ascending: false });
+    const { data } = await supabase.from("content").select("*").eq("is_active", true).order("created_at", { ascending: false });
     return data || [];
   },
-  async getContentByType(type) {
-    const { data } = await supabase.from("content").select("*").eq("is_active", true).eq("type", type).order("views", { ascending: false });
+  async getAllContentAdmin() {
+    // Admin gets ALL content including inactive
+    const { data } = await supabase.from("content").select("*").order("created_at", { ascending: false });
     return data || [];
-  },
-  async getLiveContent() {
-    const { data } = await supabase.from("content").select("*").eq("is_active", true).eq("is_live", true).order("live_viewers", { ascending: false });
-    return data || [];
-  },
-  async getFeatured() {
-    const { data } = await supabase.from("content").select("*").eq("is_active", true).eq("is_featured", true).order("views", { ascending: false }).limit(5);
-    return data || [];
-  },
-  async searchContent(q) {
-    const { data } = await supabase.from("content").select("*").eq("is_active", true).ilike("title", `%${q}%`);
-    return data || [];
-  },
-  async getContentById(id) {
-    const { data } = await supabase.from("content").select("*").eq("id", id).single();
-    if (data) supabase.from("content").update({ views: (data.views || 0) + 1 }).eq("id", id).then(() => {});
-    return data;
   },
   async addContent(d) {
     const { data, error } = await supabase.from("content").insert(d).select().single();
@@ -67,11 +47,15 @@ export const db = {
     if (error) throw error;
     return data;
   },
+
+  // ✅ REAL DELETE — permanently removes from database
   async deleteContent(id) {
-    await supabase.from("content").update({ is_active: false }).eq("id", id);
+    const { error } = await supabase.from("content").delete().eq("id", id);
+    if (error) throw error;
+    return true;
   },
 
-  /* ── WATCHLIST ──────────── */
+  /* ── WATCHLIST ── */
   async getWatchlist(userId) {
     const { data } = await supabase.from("watchlist").select("*, content(*)").eq("user_id", userId).order("added_at", { ascending: false });
     return data || [];
@@ -89,7 +73,7 @@ export const db = {
     return !!data;
   },
 
-  /* ── HISTORY ────────────── */
+  /* ── HISTORY ── */
   async getHistory(userId) {
     const { data } = await supabase.from("watch_history").select("*, content(*)").eq("user_id", userId).order("watched_at", { ascending: false }).limit(20);
     return data || [];
@@ -106,26 +90,13 @@ export const db = {
     await supabase.from("watch_history").delete().eq("user_id", userId);
   },
 
-  /* ── PROFILES ───────────── */
+  /* ── PROFILES ── */
   async getProfiles(userId) {
     const { data } = await supabase.from("profiles").select("*").eq("user_id", userId);
     return data || [];
   },
-  async createProfile(userId, d) {
-    const { data, error } = await supabase.from("profiles").insert({ user_id: userId, ...d }).select().single();
-    if (error) throw error;
-    return data;
-  },
-  async updateProfile(id, d) {
-    const { data, error } = await supabase.from("profiles").update(d).eq("id", id).select().single();
-    if (error) throw error;
-    return data;
-  },
-  async deleteProfile(id) {
-    await supabase.from("profiles").delete().eq("id", id);
-  },
 
-  /* ── NOTIFICATIONS ──────── */
+  /* ── NOTIFICATIONS ── */
   async getNotifications(userId) {
     const { data } = await supabase.from("notifications").select("*").eq("user_id", userId).order("created_at", { ascending: false }).limit(20);
     return data || [];
@@ -137,7 +108,7 @@ export const db = {
     await supabase.from("notifications").update({ is_read: true }).eq("user_id", userId);
   },
 
-  /* ── SUBSCRIPTIONS ──────── */
+  /* ── SUBSCRIPTIONS ── */
   async getSubscription(userId) {
     const { data } = await supabase.from("subscriptions").select("*").eq("user_id", userId).eq("status", "active").order("created_at", { ascending: false }).limit(1).maybeSingle();
     return data;
@@ -151,20 +122,17 @@ export const db = {
     }).select().single();
     if (error) throw error;
     await supabase.from("users").update({ plan: planId }).eq("id", userId);
-    await supabase.from("transactions").insert({ user_id: userId, plan_id: planId, amount, status: "success", payment_id: paymentId });
+    await supabase.from("transactions").insert({ user_id: userId, plan_id: planId, amount, status: "success", payment_id: paymentId }).catch(() => {});
     return data;
   },
 
-  /* ── ADS ────────────────── */
+  /* ── ADS ── */
   async getAdsForUser(userId, type) {
     const user = userId ? await db.getUserById(userId).catch(() => null) : null;
     const plan = user?.plan || "free";
-    if (["plan_premium","plan_annual","premium"].includes(plan)) return [];
+    if (["plan_premium", "plan_annual", "premium"].includes(plan)) return [];
     const { data } = await supabase.from("ads").select("*").eq("is_active", true).eq("type", type).order("priority").limit(1);
     return data || [];
-  },
-  async trackImpression(adId, userId, event) {
-    await supabase.from("ad_impressions").insert({ ad_id: adId, user_id: userId, impression_type: event }).catch(() => {});
   },
   async getAllAds() {
     const { data } = await supabase.from("ads").select("*").order("created_at", { ascending: false });
@@ -180,34 +148,38 @@ export const db = {
     if (error) throw error;
     return data;
   },
+  async deleteAd(id) {
+    const { error } = await supabase.from("ads").delete().eq("id", id);
+    if (error) throw error;
+    return true;
+  },
 
-  /* ── ADMIN STATS ────────── */
+  /* ── ADMIN STATS ── */
   async getAdminStats() {
     const [u, c, s, t, a] = await Promise.all([
       supabase.from("users").select("id", { count: "exact" }),
-      supabase.from("content").select("id, views", { count: "exact" }),
+      supabase.from("content").select("id, views", { count: "exact" }).eq("is_active", true),
       supabase.from("subscriptions").select("id", { count: "exact" }).eq("status", "active"),
       supabase.from("transactions").select("amount").eq("status", "success"),
-      supabase.from("ads").select("id, is_active", { count: "exact" }),
+      supabase.from("ads").select("id, is_active"),
     ]);
     return {
-      totalUsers:    u.count || 0,
-      totalContent:  c.count || 0,
-      activeSubs:    s.count || 0,
-      totalRevenue:  (t.data || []).reduce((sum, x) => sum + (x.amount || 0), 0),
-      totalViews:    (c.data || []).reduce((sum, x) => sum + (x.views || 0), 0),
-      activeAds:     (a.data || []).filter(x => x.is_active).length,
-      liveNow:       0,
+      totalUsers:   u.count || 0,
+      totalContent: c.count || 0,
+      activeSubs:   s.count || 0,
+      totalRevenue: (t.data || []).reduce((sum, x) => sum + (x.amount || 0), 0),
+      totalViews:   (c.data || []).reduce((sum, x) => sum + (x.views || 0), 0),
+      activeAds:    (a.data || []).filter(x => x.is_active).length,
     };
   },
   async getAllUsers() {
     const { data } = await supabase.from("users").select("*").order("created_at", { ascending: false });
     return data || [];
   },
-  async suspendUser(id) { await supabase.from("users").update({ is_active: false }).eq("id", id); },
-  async activateUser(id) { await supabase.from("users").update({ is_active: true }).eq("id", id); },
-  async getTransactions() {
-    const { data } = await supabase.from("transactions").select("*").order("created_at", { ascending: false }).limit(50);
-    return data || [];
+  async suspendUser(id) {
+    await supabase.from("users").update({ is_active: false }).eq("id", id);
+  },
+  async activateUser(id) {
+    await supabase.from("users").update({ is_active: true }).eq("id", id);
   },
 };
