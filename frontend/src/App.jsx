@@ -1,172 +1,119 @@
 import { useState, useEffect } from "react";
-import { supabase, db } from "./supabase.js";
-import Login   from "./Login.jsx";
-import Home    from "./Home.jsx";
+import Login from "./Login.jsx";
+import Home from "./Home.jsx";
 import Profile from "./Profile.jsx";
-import Admin   from "./Admin.jsx";
-import Payment from "./Payment.jsx";
-import Search  from "./Search.jsx";
+import Admin from "./Admin.jsx";
+import Search from "./Search.jsx";
 
-const ADMIN_PHONES = ["+918088820924","+919000000000","+919000000001"];
-const ADMIN_EMAILS = ["admin@streamx.in","vinaygowda12096909@email.com"];
+const ADMIN_PHONES = ["+918660570052", "+919000000000", "+919000000001"];
+const ADMIN_EMAILS = ["admin@streamx.in", "vinaygowda12096909@email.com"];
 
 export default function App() {
-  const [user,        setUser]        = useState(null);
-  const [page,        setPage]        = useState("home");
-  const [ready,       setReady]       = useState(false);
-  const [showPayment, setShowPayment] = useState(false);
-  const [showSearch,  setShowSearch]  = useState(false);
-  const [toast,       setToast]       = useState(null);
+  const [user,    setUser]    = useState(null);
+  const [page,    setPage]    = useState("home");
+  const [loading, setLoading] = useState(true);
+  const [upgrade, setUpgrade] = useState(false);
 
   useEffect(() => {
-    checkSession();
-  }, []);
-
-  async function checkSession() {
+    // Load user from localStorage — instant, no delay
     try {
-      // Check Supabase session
-      const { data: { session } } = await supabase.auth.getSession();
-
-      if (session?.user) {
-        // Get user from our DB
-        const phone = session.user.phone;
-        const dbUser = phone
-          ? await db.getUserByPhone(phone).catch(()=>null)
-          : null;
-
-        if (dbUser) {
-          setUser(dbUser);
-          setReady(true);
-          return;
-        }
-      }
-
-      // Check localStorage fallback
       const saved = localStorage.getItem("streamx_user");
       if (saved) {
-        const parsed = JSON.parse(saved);
-        // Verify user still exists in DB
-        const dbUser = await db.getUserById(parsed.id).catch(()=>null);
-        if (dbUser) {
-          setUser(dbUser);
-        } else {
-          localStorage.removeItem("streamx_user");
-        }
+        const u = JSON.parse(saved);
+        if (u?.id) { setUser(u); setPage("home"); }
       }
-    } catch (e) {
-      console.log("Session check failed:", e);
-    }
-    setReady(true);
-  }
-
-  const isAdmin = user && (
-    ADMIN_PHONES.includes(user.phone) ||
-    ADMIN_EMAILS.includes(user.email) ||
-    user.role === "admin"
-  );
-
-  function showToast(msg) {
-    setToast(msg);
-    setTimeout(() => setToast(null), 3000);
-  }
-
-  async function handleLogin(userData) {
-    setUser(userData);
-    localStorage.setItem("streamx_user", JSON.stringify(userData));
-    setPage("home");
-    showToast("Welcome back, " + userData.name + "! 👋");
-  }
-
-  async function handleLogout() {
-    try {
-      await supabase.auth.signOut();
     } catch (e) {}
-    localStorage.clear();
+    setLoading(false);
+  }, []);
+
+  function handleLogin(u) {
+    const isAdmin = ADMIN_PHONES.includes(u.phone) || ADMIN_EMAILS.includes(u.email) || u.role === "admin";
+    const userData = { ...u, role: isAdmin ? "admin" : (u.role || "user"), plan: isAdmin ? "premium" : (u.plan || "free") };
+    localStorage.setItem("streamx_user", JSON.stringify(userData));
+    setUser(userData);
+    setPage("home");
+  }
+
+  function handleLogout() {
+    localStorage.removeItem("streamx_user");
     setUser(null);
     setPage("home");
-    window.location.reload();
   }
 
-  async function handlePaySuccess(data) {
-    showToast("✅ " + data.planName + " activated!");
-    setShowPayment(false);
-    // Refresh user data
-    if (user?.id) {
-      const updated = await db.getUserById(user.id).catch(()=>null);
-      if (updated) {
-        setUser(updated);
-        localStorage.setItem("streamx_user", JSON.stringify(updated));
-      }
+  function handleNavigate(p) {
+    // Admin check
+    if (p === "admin") {
+      const isAdmin = user && (ADMIN_PHONES.includes(user.phone) || ADMIN_EMAILS.includes(user.email) || user.role === "admin");
+      if (!isAdmin) { alert("Admin access only!"); return; }
     }
+    setPage(p);
+    window.scrollTo(0, 0);
   }
 
-  if (!ready) return (
-    <div style={{minHeight:"100vh",background:"#07070c",display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",gap:20}}>
-      <div style={{fontWeight:900,fontSize:40,letterSpacing:2}}>
-        <span style={{color:"#e50914"}}>STREAM</span>
-        <span style={{color:"#fff"}}>X</span>
+  if (loading) return (
+    <div style={{ minHeight: "100vh", background: "#07070c", display: "flex", alignItems: "center", justifyContent: "center" }}>
+      <div style={{ textAlign: "center" }}>
+        <div style={{ fontWeight: 900, fontSize: 36, letterSpacing: 2, marginBottom: 20 }}>
+          <span style={{ color: "#e50914" }}>STREAM</span><span style={{ color: "#fff" }}>X</span>
+        </div>
+        <div style={{ width: 36, height: 36, border: "3px solid #1a1a26", borderTop: "3px solid #e50914", borderRadius: "50%", animation: "spin .8s linear infinite", margin: "0 auto" }} />
+        <style>{`@keyframes spin{to{transform:rotate(360deg);}}`}</style>
       </div>
-      <div style={{width:40,height:40,border:"3px solid #1a1a26",borderTop:"3px solid #e50914",borderRadius:"50%",animation:"spin .8s linear infinite"}}/>
-      <style>{`@keyframes spin{to{transform:rotate(360deg);}}`}</style>
     </div>
   );
 
-  if (!user) return <Login onLogin={handleLogin}/>;
-
-  if (page==="admin" && !isAdmin) return (
-    <div style={{minHeight:"100vh",background:"#07070c",display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",gap:16}}>
-      <div style={{fontSize:72}}>🚫</div>
-      <div style={{color:"#e50914",fontSize:28,fontWeight:900}}>Access Denied</div>
-      <div style={{color:"#555",fontSize:14}}>Admin access only</div>
-      <button onClick={()=>setPage("home")} style={{background:"#e50914",color:"#fff",border:"none",borderRadius:8,padding:"12px 28px",fontWeight:700,fontSize:14,cursor:"pointer",marginTop:8}}>
-        Go Home
-      </button>
-    </div>
-  );
+  if (!user) return <Login onLogin={handleLogin} />;
 
   return (
-    <div style={{minHeight:"100vh",background:"#07070c"}}>
-      {/* Toast */}
-      {toast&&(
-        <div style={{position:"fixed",top:20,left:"50%",transform:"translateX(-50%)",zIndex:9999,background:"#1a1a26",color:"#fff",padding:"12px 24px",borderRadius:40,fontSize:13,fontWeight:600,border:"1px solid #2a2a36",boxShadow:"0 8px 32px rgba(0,0,0,.8)",whiteSpace:"nowrap"}}>
-          {toast}
+    <div style={{ minHeight: "100vh", background: "#07070c" }}>
+      {/* Upgrade Modal */}
+      {upgrade && (
+        <div style={{ position: "fixed", inset: 0, zIndex: 9999, background: "rgba(0,0,0,.9)", display: "flex", alignItems: "center", justifyContent: "center", padding: 20, fontFamily: "Inter,sans-serif" }}>
+          <div style={{ background: "#111120", border: "1px solid #1a1a26", borderRadius: 20, padding: 32, width: "100%", maxWidth: 380, textAlign: "center" }}>
+            <div style={{ fontSize: 52, marginBottom: 14 }}>👑</div>
+            <div style={{ fontWeight: 900, fontSize: 24, marginBottom: 6 }}>StreamX Premium</div>
+            <div style={{ fontSize: 13, color: "#666", marginBottom: 24, lineHeight: 1.7 }}>4K · HDR · No Ads · 4 Screens · Downloads · All Languages</div>
+            {[
+              { name: "Mobile", price: "₹149", sub: "/month · 1 screen · HD" },
+              { name: "Basic",  price: "₹299", sub: "/month · 2 screens · FHD" },
+              { name: "Premium",price: "₹499", sub: "/month · 4 screens · 4K HDR", best: true },
+              { name: "Annual", price: "₹999", sub: "/year · Save 83% · All features", best: false },
+            ].map(p => (
+              <div key={p.name} onClick={() => setUpgrade(false)} style={{ background: p.best ? "rgba(229,9,20,.12)" : "rgba(255,255,255,.04)", border: `1px solid ${p.best ? "rgba(229,9,20,.4)" : "#1a1a26"}`, borderRadius: 12, padding: "14px 18px", marginBottom: 10, cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center", transition: "all .15s" }}>
+                <div style={{ textAlign: "left" }}>
+                  <div style={{ fontWeight: 700, fontSize: 15 }}>{p.name}{p.best && <span style={{ background: "#e50914", color: "#fff", fontSize: 9, fontWeight: 800, padding: "1px 6px", borderRadius: 3, marginLeft: 8 }}>BEST</span>}</div>
+                  <div style={{ fontSize: 11, color: "#666", marginTop: 2 }}>{p.sub}</div>
+                </div>
+                <div style={{ fontWeight: 900, fontSize: 18, color: p.best ? "#e50914" : "#fff" }}>{p.price}</div>
+              </div>
+            ))}
+            <button onClick={() => setUpgrade(false)} style={{ width: "100%", background: "rgba(255,255,255,.06)", border: "1px solid #1a1a26", color: "#aaa", borderRadius: 10, padding: "12px", fontSize: 13, cursor: "pointer", fontFamily: "Inter,sans-serif", marginTop: 4 }}>Maybe Later</button>
+          </div>
         </div>
       )}
 
-      {/* Modals */}
-      {showPayment&&<Payment user={user} currentPlan={user?.plan} onSuccess={handlePaySuccess} onClose={()=>setShowPayment(false)}/>}
-      {showSearch &&<Search  onPlay={()=>setShowSearch(false)} onClose={()=>setShowSearch(false)}/>}
-
       {/* Pages */}
-      {page==="home"    &&<Home    onNavigate={setPage} user={user} onUpgrade={()=>setShowPayment(true)} onSearch={()=>setShowSearch(true)}/>}
-      {page==="profile" &&<Profile onNavigate={setPage} user={user} onLogout={handleLogout} onUpgrade={()=>setShowPayment(true)}/>}
-      {page==="admin"   &&<Admin   onNavigate={setPage} user={user}/>}
+      {page === "home"    && <Home    onNavigate={handleNavigate} user={user} onUpgrade={() => setUpgrade(true)} />}
+      {page === "profile" && <Profile onNavigate={handleNavigate} user={user} onLogout={handleLogout} onUpgrade={() => setUpgrade(true)} />}
+      {page === "admin"   && <Admin   onNavigate={handleNavigate} user={user} />}
+      {page === "search"  && <Search  onNavigate={handleNavigate} user={user} onClose={() => setPage("home")} />}
 
-      {/* Bottom Nav */}
-      <div style={{position:"fixed",bottom:0,left:0,right:0,background:"rgba(10,10,15,.97)",borderTop:"1px solid #1a1a26",display:"flex",justifyContent:"space-around",padding:"10px 0 14px",zIndex:500,backdropFilter:"blur(12px)"}}>
-        {[
-          {id:"home",   icon:"🏠",label:"Home"},
-          {id:"profile",icon:"👤",label:"Profile"},
-        ].map(n=>(
-          <button key={n.id} onClick={()=>setPage(n.id)} style={{background:"none",border:"none",cursor:"pointer",display:"flex",flexDirection:"column",alignItems:"center",gap:4,color:page===n.id?"#e50914":"#444"}}>
-            <span style={{fontSize:22}}>{n.icon}</span>
-            <span style={{fontSize:10,fontWeight:page===n.id?700:400}}>{n.label}</span>
-          </button>
-        ))}
-
-        <button onClick={()=>setShowPayment(true)} style={{background:"none",border:"none",cursor:"pointer",display:"flex",flexDirection:"column",alignItems:"center",gap:4,color:"#e50914"}}>
-          <span style={{fontSize:22}}>👑</span>
-          <span style={{fontSize:10,fontWeight:700}}>Premium</span>
-        </button>
-
-        {/* ADMIN ONLY — Hidden from normal users */}
-        {isAdmin&&(
-          <button onClick={()=>setPage("admin")} style={{background:page==="admin"?"rgba(229,9,20,.15)":"none",border:"none",cursor:"pointer",display:"flex",flexDirection:"column",alignItems:"center",gap:4,color:page==="admin"?"#e50914":"#f59e0b",borderRadius:8,padding:"0 8px"}}>
-            <span style={{fontSize:22}}>⚡</span>
-            <span style={{fontSize:10,fontWeight:700,color:"#f59e0b"}}>Admin</span>
-          </button>
-        )}
-      </div>
+      {/* Bottom Nav — Mobile */}
+      {page !== "admin" && (
+        <div style={{ position: "fixed", bottom: 0, left: 0, right: 0, zIndex: 100, background: "rgba(7,7,12,.97)", backdropFilter: "blur(16px)", borderTop: "1px solid #1a1a26", display: "flex", padding: "8px 0 calc(8px + env(safe-area-inset-bottom))" }}>
+          {[
+            { id: "home",    icon: "🏠", label: "Home"    },
+            { id: "search",  icon: "🔍", label: "Search"  },
+            { id: "profile", icon: "👤", label: "Profile" },
+            ...(user?.role === "admin" ? [{ id: "admin", icon: "⚙️", label: "Admin" }] : []),
+          ].map(tab => (
+            <button key={tab.id} onClick={() => handleNavigate(tab.id)} style={{ flex: 1, background: "none", border: "none", display: "flex", flexDirection: "column", alignItems: "center", gap: 3, cursor: "pointer", padding: "4px 0" }}>
+              <span style={{ fontSize: 20 }}>{tab.icon}</span>
+              <span style={{ fontSize: 10, color: page === tab.id ? "#e50914" : "#555", fontWeight: page === tab.id ? 700 : 400, fontFamily: "Inter,sans-serif" }}>{tab.label}</span>
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
