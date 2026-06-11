@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { supabase, db } from "./supabase.js";
 
 const PLANS = [
   {
@@ -6,16 +7,24 @@ const PLANS = [
     name: "Mobile",
     price: 149,
     period: "month",
-    color: "#6b7280",
-    features: ["720p only", "1 screen", "Mobile only", "Ads included"],
+    color: "#3b82f6",
+    icon: "📱",
+    devices: 1,
+    quality: "HD",
+    features: ["1 screen","HD quality","Mobile & tablet","Ads supported"],
+    noAds: false,
   },
   {
     id: "plan_basic",
     name: "Basic",
     price: 299,
     period: "month",
-    color: "#3b82f6",
-    features: ["1080p HD", "1 screen", "All devices", "No Ads"],
+    color: "#8b5cf6",
+    icon: "⭐",
+    devices: 2,
+    quality: "Full HD",
+    features: ["2 screens","Full HD 1080p","TV + Mobile","Fewer ads"],
+    noAds: false,
   },
   {
     id: "plan_premium",
@@ -23,267 +32,134 @@ const PLANS = [
     price: 499,
     period: "month",
     color: "#e50914",
-    features: ["4K + HDR", "4 screens", "Downloads", "Dolby Atmos", "No Ads"],
-    popular: true,
+    icon: "👑",
+    devices: 4,
+    quality: "4K HDR",
+    best: true,
+    features: ["4 screens","4K HDR","All devices","Downloads","NO ADS ✓","All languages"],
+    noAds: true,
   },
   {
     id: "plan_annual",
-    name: "Annual",
+    name: "Super Saver",
     price: 999,
     period: "year",
     color: "#f59e0b",
-    features: ["4K + HDR", "4 screens", "Unlimited downloads", "Save 80%", "No Ads"],
+    icon: "🏆",
+    devices: 4,
+    quality: "4K HDR",
+    features: ["4 screens","4K HDR","All devices","Downloads","NO ADS ✓","Save 83%"],
+    noAds: true,
+    savings: "Save ₹4,989/yr",
   },
 ];
 
-export default function Payment({ user, currentPlan, onSuccess, onClose }) {
-  const [selected, setSelected] = useState("plan_premium");
+export default function Payment({ user, onClose, onSuccess }) {
+  const [sel,     setSel]     = useState("plan_premium");
   const [loading, setLoading] = useState(false);
-  const [step, setStep] = useState("plans"); // plans | paying | success
+  const [done,    setDone]    = useState(false);
+  const [error,   setError]   = useState("");
 
-  const plan = PLANS.find(p => p.id === selected);
+  const plan = PLANS.find(p => p.id === sel) || PLANS[2];
 
-  function handlePayment() {
-    setLoading(true);
+  async function loadRazorpay() {
+    return new Promise((res, rej) => {
+      if (window.Razorpay) { res(); return; }
+      const s = document.createElement("script");
+      s.src = "https://checkout.razorpay.com/v1/checkout.js";
+      s.onload = res; s.onerror = () => rej(new Error("Failed to load Razorpay"));
+      document.head.appendChild(s);
+    });
+  }
 
-    const options = {
-      // ← Replace with your Razorpay test key
-      key: "rzp_test_StY0bYNyFRDQBb",
-      amount: plan.price * 100, // in paise
-      currency: "INR",
-      name: "StreamX",
-      description: `${plan.name} Plan — ${plan.period}ly subscription`,
-      image: "https://via.placeholder.com/60x60/e50914/ffffff?text=SX",
-      prefill: {
-        name:  user?.name  || "StreamX User",
-        email: user?.email || "",
-      },
-      notes: {
-        planId: plan.id,
-        userId: user?.id || "",
-      },
-      theme: {
-        color: "#e50914",
-      },
-      handler: function(response) {
-        // Payment successful!
-        setStep("success");
-        setLoading(false);
-        setTimeout(() => {
-          onSuccess({
-            planId:    plan.id,
-            planName:  plan.name,
-            amount:    plan.price,
-            paymentId: response.razorpay_payment_id,
-          });
-        }, 2000);
-      },
-      modal: {
-        ondismiss: () => setLoading(false),
-      },
-    };
-
+  async function pay() {
+    setError(""); setLoading(true);
     try {
+      await loadRazorpay();
+      const options = {
+        key: import.meta.env.VITE_RAZORPAY_KEY || "rzp_test_YOUR_KEY_HERE",
+        amount: plan.price * 100,
+        currency: "INR",
+        name: "StreamX",
+        description: `${plan.name} Plan`,
+        image: "https://streamx-ott.vercel.app/favicon.ico",
+        prefill: { contact: user?.phone?.replace("+91","") || "", email: user?.email || "", name: user?.name || "" },
+        theme: { color: plan.color },
+        handler: async (response) => { await activate(response.razorpay_payment_id); },
+        modal: { ondismiss: () => setLoading(false) },
+      };
       const rzp = new window.Razorpay(options);
-      rzp.on("payment.failed", () => {
-        setLoading(false);
-        alert("Payment failed. Please try again.");
-      });
+      rzp.on("payment.failed", (r) => { setError("Payment failed: " + r.error.description); setLoading(false); });
       rzp.open();
-    } catch (e) {
-      setLoading(false);
-      alert("Payment gateway not loaded. Please refresh.");
-    }
+    } catch(e) { setError("Payment error. Try again."); setLoading(false); }
   }
 
-  if (step === "success") {
-    return (
-      <div style={{
-        position: "fixed", inset: 0, zIndex: 800,
-        background: "rgba(0,0,0,.9)",
-        display: "flex", alignItems: "center",
-        justifyContent: "center",
-      }}>
-        <div style={{
-          background: "#0f0f18",
-          border: "1px solid #00c853",
-          borderRadius: 20, padding: 40,
-          textAlign: "center", maxWidth: 380,
-        }}>
-          <div style={{ fontSize: 72, marginBottom: 16 }}>🎉</div>
-          <div style={{
-            fontFamily: "serif", fontSize: 28,
-            fontWeight: 900, color: "#00c853", marginBottom: 8,
-          }}>Payment Successful!</div>
-          <div style={{ color: "#888", fontSize: 14, marginBottom: 24 }}>
-            Welcome to StreamX {plan.name}!<br/>
-            Enjoy unlimited streaming.
-          </div>
-          <div style={{
-            background: "rgba(0,200,83,.1)",
-            border: "1px solid rgba(0,200,83,.3)",
-            borderRadius: 10, padding: 16, marginBottom: 24,
-          }}>
-            <div style={{ fontSize: 13, color: "#aaa" }}>Plan Activated</div>
-            <div style={{ fontSize: 22, fontWeight: 800, color: "#00c853" }}>
-              {plan.name} — ₹{plan.price}/{plan.period}
-            </div>
-          </div>
-          <button onClick={onClose} style={{
-            width: "100%", background: "#e50914",
-            color: "#fff", border: "none", borderRadius: 8,
-            padding: "13px 0", fontWeight: 800,
-            fontSize: 14, cursor: "pointer",
-          }}>
-            Start Watching 🎬
-          </button>
-        </div>
-      </div>
-    );
+  async function activate(paymentId) {
+    try {
+      const end = new Date();
+      if (plan.period === "year") end.setFullYear(end.getFullYear() + 1);
+      else end.setMonth(end.getMonth() + 1);
+      await supabase.from("subscriptions").insert({ user_id:user.id, plan_id:plan.id, status:"active", amount:plan.price, payment_id:paymentId, end_date:end.toISOString() });
+      await supabase.from("transactions").insert({ user_id:user.id, plan_id:plan.id, amount:plan.price, status:"success", payment_id:paymentId });
+      await db.updateUser(user.id, { plan: plan.id });
+      const saved = JSON.parse(localStorage.getItem("streamx_user") || "{}");
+      localStorage.setItem("streamx_user", JSON.stringify({ ...saved, plan: plan.id }));
+      await supabase.from("notifications").insert({ user_id:user.id, type:"subscription", title:`${plan.name} Plan Activated! ${plan.icon}`, message:`Enjoy ${plan.devices} screens and ${plan.quality}!` });
+      setDone(true); setLoading(false);
+      setTimeout(() => onSuccess?.({ ...user, plan: plan.id }), 2000);
+    } catch(e) { setError("Failed to activate. Contact support."); setLoading(false); }
   }
+
+  if (done) return (
+    <div style={{ position:"fixed",inset:0,zIndex:9999,background:"#07070c",display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"Inter,sans-serif" }}>
+      <div style={{ textAlign:"center",padding:24 }}>
+        <div style={{ fontSize:72,marginBottom:16 }}>🎉</div>
+        <div style={{ fontWeight:900,fontSize:26,color:"#fff",marginBottom:8 }}>{plan.name} Activated!</div>
+        <div style={{ fontSize:14,color:plan.color,fontWeight:700 }}>{plan.noAds?"Enjoy ad-free streaming! 🎬":"Start watching now!"}</div>
+      </div>
+    </div>
+  );
 
   return (
-    <div style={{
-      position: "fixed", inset: 0, zIndex: 800,
-      background: "rgba(0,0,0,.88)",
-      backdropFilter: "blur(8px)",
-      display: "flex", alignItems: "center",
-      justifyContent: "center", padding: 16,
-      overflowY: "auto",
-    }}>
-      <div style={{
-        background: "#0a0a0f",
-        border: "1px solid #1a1a26",
-        borderRadius: 20, padding: 28,
-        width: "100%", maxWidth: 520,
-        margin: "auto",
-      }}>
-        {/* Header */}
-        <div style={{
-          display: "flex", justifyContent: "space-between",
-          alignItems: "center", marginBottom: 24,
-        }}>
+    <div style={{ position:"fixed",inset:0,zIndex:9999,background:"rgba(0,0,0,.96)",display:"flex",alignItems:"center",justifyContent:"center",padding:16,fontFamily:"Inter,sans-serif",overflowY:"auto" }}>
+      <style>{`@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800;900&display=swap');*{box-sizing:border-box;}@keyframes fadeUp{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}`}</style>
+      <div style={{ width:"100%",maxWidth:420,animation:"fadeUp .3s ease" }}>
+        <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20 }}>
           <div>
-            <div style={{
-              fontFamily: "serif", fontWeight: 900,
-              fontSize: 24, letterSpacing: 1,
-            }}>
-              <span style={{ color: "#e50914" }}>STREAM</span>
-              <span style={{ color: "#fff" }}>X</span>
-              <span style={{ color: "#888", fontSize: 14, fontWeight: 400, marginLeft: 8 }}>
-                Premium
-              </span>
-            </div>
-            <div style={{ fontSize: 12, color: "#555", marginTop: 2 }}>
-              Choose your plan
-            </div>
+            <div style={{ fontWeight:900,fontSize:22,color:"#fff" }}>StreamX Premium</div>
+            <div style={{ fontSize:12,color:"#555" }}>Choose your plan</div>
           </div>
-          <button onClick={onClose} style={{
-            background: "rgba(255,255,255,.06)",
-            border: "1px solid #1a1a26", color: "#aaa",
-            borderRadius: 8, padding: "6px 12px",
-            cursor: "pointer", fontSize: 14,
-          }}>✕</button>
+          <button onClick={onClose} style={{ background:"rgba(255,255,255,.06)",border:"1px solid #1a1a26",color:"#aaa",borderRadius:9,width:36,height:36,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",fontSize:18 }}>✕</button>
         </div>
-
-        {/* Plans grid */}
-        <div style={{
-          display: "grid",
-          gridTemplateColumns: "1fr 1fr",
-          gap: 10, marginBottom: 20,
-        }}>
-          {PLANS.map(p => (
-            <div
-              key={p.id}
-              onClick={() => setSelected(p.id)}
-              style={{
-                border: `2px solid ${selected === p.id ? p.color : "#1a1a26"}`,
-                borderRadius: 12, padding: 16,
-                cursor: "pointer", position: "relative",
-                background: selected === p.id ? `${p.color}11` : "#0f0f18",
-                transition: "all .2s",
-              }}
-            >
-              {p.popular && (
-                <div style={{
-                  position: "absolute", top: -10, left: "50%",
-                  transform: "translateX(-50%)",
-                  background: "#e50914", color: "#fff",
-                  fontSize: 9, fontWeight: 800,
-                  padding: "2px 10px", borderRadius: 20, letterSpacing: 1,
-                  whiteSpace: "nowrap",
-                }}>MOST POPULAR</div>
-              )}
-              <div style={{
-                fontSize: 15, fontWeight: 800,
-                color: p.color, marginBottom: 4,
-              }}>{p.name}</div>
-              <div style={{
-                fontSize: 24, fontWeight: 900,
-                color: "#fff",
-              }}>₹{p.price}</div>
-              <div style={{ fontSize: 11, color: "#555", marginBottom: 10 }}>
-                /{p.period}
-              </div>
-              {p.features.map(f => (
-                <div key={f} style={{
-                  fontSize: 11, color: "#888",
-                  marginBottom: 4, display: "flex", gap: 5,
-                }}>
-                  <span style={{ color: p.color }}>✓</span>{f}
+        {PLANS.map(p => (
+          <div key={p.id} onClick={() => setSel(p.id)} style={{ background:sel===p.id?`${p.color}14`:"rgba(255,255,255,.03)",border:`2px solid ${sel===p.id?p.color:"#1a1a26"}`,borderRadius:14,padding:"14px 16px",marginBottom:10,cursor:"pointer",position:"relative",transition:"all .2s" }}>
+            {p.best && <div style={{ position:"absolute",top:-10,right:16,background:p.color,color:"#fff",fontSize:10,fontWeight:800,padding:"2px 12px",borderRadius:20 }}>MOST POPULAR</div>}
+            {p.savings && <div style={{ position:"absolute",top:-10,left:16,background:"#00c853",color:"#fff",fontSize:10,fontWeight:800,padding:"2px 10px",borderRadius:20 }}>{p.savings}</div>}
+            <div style={{ display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:8 }}>
+              <div>
+                <div style={{ display:"flex",alignItems:"center",gap:8,marginBottom:3 }}>
+                  <span style={{ fontSize:18 }}>{p.icon}</span>
+                  <span style={{ fontWeight:800,fontSize:16,color:"#fff" }}>{p.name}</span>
                 </div>
+                <div style={{ fontSize:11,color:"#666" }}>{p.devices} screen{p.devices>1?"s":""} · {p.quality}</div>
+              </div>
+              <div style={{ textAlign:"right" }}>
+                <div style={{ fontWeight:900,fontSize:22,color:p.color }}>₹{p.price}</div>
+                <div style={{ fontSize:10,color:"#555" }}>/{p.period}</div>
+              </div>
+            </div>
+            <div style={{ display:"flex",flexWrap:"wrap",gap:5 }}>
+              {p.features.map(f => (
+                <span key={f} style={{ background:"rgba(255,255,255,.05)",color:f.includes("NO ADS")?p.color:"#777",fontSize:10,fontWeight:f.includes("NO ADS")?700:400,padding:"3px 8px",borderRadius:20 }}>{f}</span>
               ))}
             </div>
-          ))}
-        </div>
-
-        {/* Selected plan summary */}
-        <div style={{
-          background: `${plan.color}11`,
-          border: `1px solid ${plan.color}33`,
-          borderRadius: 10, padding: 14,
-          marginBottom: 16,
-          display: "flex", justifyContent: "space-between",
-          alignItems: "center",
-        }}>
-          <div>
-            <div style={{ fontSize: 12, color: "#888" }}>Selected Plan</div>
-            <div style={{ fontSize: 16, fontWeight: 800, color: plan.color }}>
-              {plan.name}
-            </div>
           </div>
-          <div style={{ textAlign: "right" }}>
-            <div style={{ fontSize: 24, fontWeight: 900 }}>₹{plan.price}</div>
-            <div style={{ fontSize: 11, color: "#555" }}>/{plan.period}</div>
-          </div>
-        </div>
-
-        {/* Pay button */}
-        <button
-          onClick={handlePayment}
-          disabled={loading}
-          style={{
-            width: "100%",
-            background: loading ? "#333" : "#e50914",
-            color: "#fff", border: "none",
-            borderRadius: 10, padding: "14px 0",
-            fontWeight: 800, fontSize: 15,
-            cursor: loading ? "not-allowed" : "pointer",
-            marginBottom: 12, transition: "all .2s",
-          }}
-        >
-          {loading ? "Opening Payment..." : `Pay ₹${plan.price} Securely →`}
+        ))}
+        {error && <div style={{ background:"rgba(248,113,113,.08)",border:"1px solid rgba(248,113,113,.2)",borderRadius:8,padding:"9px 14px",marginBottom:12,color:"#f87171",fontSize:12 }}>❌ {error}</div>}
+        <button onClick={pay} disabled={loading} style={{ width:"100%",height:54,background:loading?"#1a1a26":`linear-gradient(135deg,${plan.color},${plan.color}cc)`,color:"#fff",border:"none",borderRadius:13,fontWeight:800,fontSize:16,cursor:loading?"not-allowed":"pointer",fontFamily:"Inter,sans-serif",marginBottom:12 }}>
+          {loading?"Processing...": `Pay ₹${plan.price} · Subscribe`}
         </button>
-
-        {/* Security badges */}
-        <div style={{
-          display: "flex", justifyContent: "center",
-          gap: 16, fontSize: 11, color: "#444",
-        }}>
-          <span>🔒 256-bit SSL</span>
-          <span>🏦 Razorpay Secure</span>
-          <span>✅ Cancel Anytime</span>
-        </div>
+        <div style={{ textAlign:"center",fontSize:11,color:"#333",lineHeight:1.8 }}>🔒 Secure payment via Razorpay · Cancel anytime</div>
       </div>
     </div>
   );
