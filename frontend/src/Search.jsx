@@ -1,461 +1,464 @@
 import { useState, useEffect, useRef } from "react";
+import { supabase } from "./supabase.js";
 
-const ALL_CONTENT = [
-  { id:"c1",  title:"Apex Protocol",       emoji:"🔥", genre:"Action",      type:"Movie",  score:9.1, year:2026, lang:"EN/HI/TA", tags:["4K","HDR"],   accent:"#e50914", desc:"An elite soldier must stop a rogue AI in 48 hours."           },
-  { id:"c2",  title:"Dark Meridian",        emoji:"🌌", genre:"Sci-Fi",      type:"Series", score:8.8, year:2026, lang:"EN/HI",    tags:["HDR"],         accent:"#1d9bf0", desc:"A wormhole researcher discovers reality has a kill switch."    },
-  { id:"c3",  title:"Bombay Central",       emoji:"🏙️", genre:"Drama",       type:"Movie",  score:8.5, year:2025, lang:"HI/EN",   tags:["4K","Dolby"],  accent:"#f59e0b", desc:"Three strangers collide at a Mumbai railway station."          },
-  { id:"c4",  title:"IPL 2026 Finals",      emoji:"🏏", genre:"Cricket",     type:"Live",   score:0,   year:2026, lang:"HI/EN/TA", tags:["LIVE","4K"],   accent:"#00c853", desc:"LIVE: Mumbai Indians vs Chennai Super Kings!"                 },
-  { id:"c5",  title:"Steel Horizon",        emoji:"🤖", genre:"Action",      type:"Series", score:8.6, year:2026, lang:"EN/HI",    tags:["HD"],          accent:"#64748b", desc:"A mechanized police unit goes rogue in a smart city."         },
-  { id:"c6",  title:"Rang De Basanti 2",    emoji:"🎭", genre:"Drama",       type:"Movie",  score:9.0, year:2025, lang:"HI/EN",   tags:["4K","Award"],  accent:"#f59e0b", desc:"A new generation rises to avenge a forgotten martyr."         },
-  { id:"c7",  title:"Quantum Cascade",      emoji:"⚡", genre:"Thriller",    type:"Movie",  score:8.3, year:2026, lang:"EN",       tags:["HDR"],         accent:"#a855f7", desc:"A physicist holds the key to breaking all encryption."        },
-  { id:"c8",  title:"Chhota Bheem Returns", emoji:"🦸", genre:"Kids",        type:"Series", score:8.0, year:2026, lang:"HI/EN/TA", tags:["HD"],          accent:"#84cc16", desc:"Bheem faces the most powerful villain in Dholakpur!"         },
-  { id:"c9",  title:"Deep Margin",          emoji:"🌊", genre:"Documentary", type:"Doc",    score:4.9, year:2025, lang:"EN/HI",   tags:["4K","Award"],  accent:"#38bdf8", desc:"90 days inside the last uncharted deep-sea research station." },
-  { id:"c10", title:"Neon Karma",           emoji:"💫", genre:"Romance",     type:"Movie",  score:7.9, year:2026, lang:"HI",       tags:["HD"],          accent:"#ec4899", desc:"Two rival musicians discover they were always meant to meet."  },
-  { id:"c11", title:"Formula X Monaco",     emoji:"🏎️", genre:"Racing",      type:"Live",   score:0,   year:2026, lang:"EN/HI",   tags:["LIVE","4K"],   accent:"#e50914", desc:"LIVE: Final 10 laps, gap under 0.3 seconds!"                 },
-  { id:"c12", title:"India Today Live",     emoji:"📺", genre:"News",        type:"Live",   score:0,   year:2026, lang:"EN/HI",   tags:["LIVE","HD"],   accent:"#f97316", desc:"24/7 breaking news coverage from across India."              },
-  { id:"c13", title:"Hollow Crown",         emoji:"👑", genre:"Drama",       type:"Series", score:8.4, year:2025, lang:"EN",       tags:["HD"],          accent:"#c084fc", desc:"A deposed monarch rebuilds power in the shadows."            },
-  { id:"c14", title:"Blood Static",         emoji:"👻", genre:"Horror",      type:"Movie",  score:7.8, year:2026, lang:"EN",       tags:["HD"],          accent:"#f87171", desc:"Signals from a dead broadcast network resurrect something."   },
-  { id:"c15", title:"Pro Kabaddi League",   emoji:"🤸", genre:"Kabaddi",     type:"Live",   score:0,   year:2026, lang:"HI/EN",   tags:["LIVE","HD"],   accent:"#a855f7", desc:"Live match — Patna Pirates vs Jaipur Pink Panthers."        },
-];
+const R = "#e50914";
 
-const GENRES  = ["All","Action","Drama","Sci-Fi","Thriller","Horror","Romance","Comedy","Kids","Sports","Documentary","News"];
-const TYPES   = ["All","Movie","Series","Live","Doc"];
-const SORTS   = ["Relevance","Top Rated","Most Popular","Newest"];
-const TRENDING = ["IPL Finals","Apex Protocol","Dark Meridian","Rang De Basanti","Chhota Bheem"];
-
-export default function Search({ onPlay, onClose }) {
-  const [query,      setQuery]      = useState("");
-  const [results,    setResults]    = useState([]);
-  const [genre,      setGenre]      = useState("All");
-  const [type,       setType]       = useState("All");
-  const [sort,       setSort]       = useState("Relevance");
-  const [loading,    setLoading]    = useState(false);
-  const [searched,   setSearched]   = useState(false);
-  const [history,    setHistory]    = useState(() => {
-    try { return JSON.parse(localStorage.getItem("sx_search_history") || "[]"); }
-    catch { return []; }
-  });
-
+export default function Search({ onNavigate, user, onClose }) {
+  const [query,    setQuery]    = useState("");
+  const [results,  setResults]  = useState([]);
+  const [trending, setTrending] = useState([]);
+  const [recent,   setRecent]   = useState([]);
+  const [loading,  setLoading]  = useState(false);
+  const [filter,   setFilter]   = useState("all");
+  const [selected, setSelected] = useState(null);
   const inputRef = useRef(null);
+
+  const FILTERS = [
+    { id:"all",    label:"All"        },
+    { id:"Movie",  label:"Movies"     },
+    { id:"Web Series",label:"Series"  },
+    { id:"Live",   label:"Live"       },
+    { id:"Sports", label:"Sports"     },
+  ];
 
   useEffect(() => {
     inputRef.current?.focus();
+    loadTrending();
+    loadRecent();
   }, []);
 
   useEffect(() => {
-    if (query.trim().length < 2) {
-      setResults([]);
-      setSearched(false);
-      return;
-    }
-    const timer = setTimeout(() => doSearch(query), 300);
-    return () => clearTimeout(timer);
-  }, [query, genre, type, sort]);
+    if (!query.trim()) { setResults([]); return; }
+    const t = setTimeout(() => doSearch(query.trim()), 300);
+    return () => clearTimeout(t);
+  }, [query, filter]);
 
-  function doSearch(q) {
+  async function loadTrending() {
+    try {
+      const { data } = await supabase
+        .from("content")
+        .select("id,title,type,genre,thumbnail,views,rating,is_live,is_premium,release_year")
+        .eq("is_active", true)
+        .order("views", { ascending: false })
+        .limit(10);
+      setTrending(data || []);
+    } catch(e) {}
+  }
+
+  function loadRecent() {
+    try {
+      const saved = JSON.parse(localStorage.getItem("sx_recent_search") || "[]");
+      setRecent(saved);
+    } catch(e) {}
+  }
+
+  function saveRecent(q) {
+    try {
+      const saved = JSON.parse(localStorage.getItem("sx_recent_search") || "[]");
+      const updated = [q, ...saved.filter(x => x !== q)].slice(0, 8);
+      localStorage.setItem("sx_recent_search", JSON.stringify(updated));
+      setRecent(updated);
+    } catch(e) {}
+  }
+
+  function clearRecent() {
+    localStorage.removeItem("sx_recent_search");
+    setRecent([]);
+  }
+
+  async function doSearch(q) {
     setLoading(true);
-    setSearched(true);
+    try {
+      let qb = supabase
+        .from("content")
+        .select("id,title,type,genre,thumbnail,views,rating,is_live,is_premium,release_year,language,description,score")
+        .eq("is_active", true)
+        .or(`title.ilike.%${q}%,description.ilike.%${q}%,genre.ilike.%${q}%,language.ilike.%${q}%,director.ilike.%${q}%`)
+        .limit(40);
 
-    // Simulate API delay
-    setTimeout(() => {
-      let filtered = ALL_CONTENT.filter(c => {
-        const matchQ = q === "" ||
-          c.title.toLowerCase().includes(q.toLowerCase()) ||
-          c.genre.toLowerCase().includes(q.toLowerCase()) ||
-          c.desc.toLowerCase().includes(q.toLowerCase()) ||
-          c.lang.toLowerCase().includes(q.toLowerCase());
-        const matchG = genre === "All" || c.genre === genre;
-        const matchT = type  === "All" || c.type  === type;
-        return matchQ && matchG && matchT;
-      });
+      if (filter !== "all") {
+        if (filter === "Live") qb = qb.eq("is_live", true);
+        else if (filter === "Sports") qb = qb.eq("genre", "Sports");
+        else qb = qb.eq("type", filter);
+      }
 
-      // Sort
-      if (sort === "Top Rated")    filtered.sort((a,b) => b.score - a.score);
-      if (sort === "Most Popular") filtered.sort((a,b) => (b.score*1000) - (a.score*1000));
-      if (sort === "Newest")       filtered.sort((a,b) => b.year - a.year);
-
-      setResults(filtered);
-      setLoading(false);
-    }, 400);
+      const { data } = await qb.order("views", { ascending: false });
+      setResults(data || []);
+      if (q.length > 1) saveRecent(q);
+    } catch(e) { setResults([]); }
+    setLoading(false);
   }
 
-  function saveToHistory(q) {
-    if (!q.trim()) return;
-    const updated = [q, ...history.filter(h => h !== q)].slice(0, 8);
-    setHistory(updated);
-    localStorage.setItem("sx_search_history", JSON.stringify(updated));
+  function playContent(item) {
+    setSelected(item);
   }
 
-  function handleSearch(q) {
-    setQuery(q);
-    if (q.trim().length > 1) saveToHistory(q);
-  }
+  const showResults = query.trim().length > 0;
+  const showHome    = !showResults;
 
-  function clearHistory() {
-    setHistory([]);
-    localStorage.removeItem("sx_search_history");
-  }
-
-  const showHome = !searched || query.trim().length < 2;
-
-  return (
-    <div style={{
-      position: "fixed", inset: 0, zIndex: 600,
-      background: "#07070c",
-      display: "flex", flexDirection: "column",
-      fontFamily: "Inter, sans-serif",
-    }}>
-
-      {/* Search bar */}
-      <div style={{
-        display: "flex", alignItems: "center", gap: 12,
-        padding: "16px 20px",
-        background: "#0f0f18",
-        borderBottom: "1px solid #1a1a26",
-      }}>
-        <button onClick={onClose} style={{
-          background: "none", border: "none",
-          color: "#fff", fontSize: 20, cursor: "pointer",
-          flexShrink: 0,
-        }}>←</button>
-
-        <div style={{
-          flex: 1, display: "flex", alignItems: "center",
-          background: "#1a1a26", borderRadius: 10,
-          padding: "0 14px", gap: 10,
-        }}>
-          <span style={{ color: "#555", fontSize: 16 }}>🔍</span>
-          <input
-            ref={inputRef}
-            value={query}
-            onChange={e => handleSearch(e.target.value)}
-            placeholder="Search movies, shows, sports..."
-            style={{
-              flex: 1, background: "none", border: "none",
-              color: "#fff", fontSize: 15, outline: "none",
-              padding: "12px 0",
-              fontFamily: "Inter, sans-serif",
-            }}
-          />
-          {query && (
-            <button onClick={() => { setQuery(""); setResults([]); setSearched(false); }} style={{
-              background: "none", border: "none",
-              color: "#555", fontSize: 18, cursor: "pointer",
-            }}>✕</button>
+  // Content card
+  function Card({ item, big }) {
+    const isPremium = item.is_premium && !["plan_premium","premium","plan_annual"].includes(user?.plan);
+    return (
+      <div
+        onClick={() => playContent(item)}
+        style={{ cursor:"pointer", position:"relative", borderRadius:10, overflow:"hidden", background:"#0e0e1e", border:"1px solid #1a1a2e", flexShrink:0, width:big?"100%":"clamp(130px,28vw,170px)", transition:"transform .15s" }}
+        onMouseEnter={e=>e.currentTarget.style.transform="scale(1.02)"}
+        onMouseLeave={e=>e.currentTarget.style.transform="scale(1)"}
+      >
+        {/* Thumbnail */}
+        <div style={{ paddingTop:big?"42%":"140%", position:"relative", background:"#0a0a14" }}>
+          {item.thumbnail
+            ? <img src={item.thumbnail} alt={item.title} style={{ position:"absolute",inset:0,width:"100%",height:"100%",objectFit:"cover" }} onError={e=>e.target.style.display="none"}/>
+            : <div style={{ position:"absolute",inset:0,display:"flex",alignItems:"center",justifyContent:"center",fontSize:big?40:28,opacity:.3 }}>🎬</div>
+          }
+          {/* Overlays */}
+          <div style={{ position:"absolute",inset:0,background:"linear-gradient(to top,rgba(0,0,0,.9) 0%,transparent 50%)" }}/>
+          {/* Play button */}
+          <div style={{ position:"absolute",inset:0,display:"flex",alignItems:"center",justifyContent:"center",opacity:0,transition:"opacity .2s" }} className="play-overlay">
+            <div style={{ width:44,height:44,borderRadius:"50%",background:"rgba(229,9,20,.9)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:18 }}>▶</div>
+          </div>
+          {/* Badges */}
+          {item.is_live && (
+            <div style={{ position:"absolute",top:8,left:8,background:R,color:"#fff",fontSize:9,fontWeight:800,padding:"2px 7px",borderRadius:3,letterSpacing:1.5 }}>● LIVE</div>
           )}
-        </div>
-      </div>
-
-      {/* Filters — show when searching */}
-      {!showHome && (
-        <div style={{
-          display: "flex", gap: 8, padding: "10px 20px",
-          overflowX: "auto", background: "#0a0a0f",
-          borderBottom: "1px solid #1a1a26",
-        }}>
-          {/* Type filter */}
-          <select
-            value={type} onChange={e => setType(e.target.value)}
-            style={{
-              background: "#1a1a26", border: "1px solid #2a2a36",
-              color: "#fff", borderRadius: 20, padding: "5px 12px",
-              fontSize: 12, cursor: "pointer", outline: "none",
-              fontFamily: "Inter, sans-serif",
-            }}
-          >
-            {TYPES.map(t => <option key={t} value={t}>{t}</option>)}
-          </select>
-
-          {/* Genre filter */}
-          <select
-            value={genre} onChange={e => setGenre(e.target.value)}
-            style={{
-              background: "#1a1a26", border: "1px solid #2a2a36",
-              color: "#fff", borderRadius: 20, padding: "5px 12px",
-              fontSize: 12, cursor: "pointer", outline: "none",
-              fontFamily: "Inter, sans-serif",
-            }}
-          >
-            {GENRES.map(g => <option key={g} value={g}>{g}</option>)}
-          </select>
-
-          {/* Sort */}
-          <select
-            value={sort} onChange={e => setSort(e.target.value)}
-            style={{
-              background: "#1a1a26", border: "1px solid #2a2a36",
-              color: "#fff", borderRadius: 20, padding: "5px 12px",
-              fontSize: 12, cursor: "pointer", outline: "none",
-              fontFamily: "Inter, sans-serif",
-            }}
-          >
-            {SORTS.map(s => <option key={s} value={s}>{s}</option>)}
-          </select>
-
-          {/* Results count */}
-          {!loading && (
-            <div style={{
-              marginLeft: "auto", fontSize: 12, color: "#555",
-              whiteSpace: "nowrap", display: "flex", alignItems: "center",
-            }}>
-              {results.length} result{results.length !== 1 ? "s" : ""}
-            </div>
+          {isPremium && (
+            <div style={{ position:"absolute",top:8,right:8,background:"#f59e0b",color:"#000",fontSize:9,fontWeight:800,padding:"2px 7px",borderRadius:3 }}>👑 PRO</div>
           )}
-        </div>
-      )}
-
-      {/* Content area */}
-      <div style={{ flex: 1, overflowY: "auto", padding: "20px" }}>
-
-        {/* HOME STATE — no search yet */}
-        {showHome && (
-          <div>
-            {/* Trending searches */}
-            <div style={{ marginBottom: 28 }}>
-              <div style={{
-                fontSize: 12, color: "#555", fontWeight: 700,
-                textTransform: "uppercase", letterSpacing: 1,
-                marginBottom: 12,
-              }}>🔥 Trending Searches</div>
-              <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-                {TRENDING.map(t => (
-                  <button key={t} onClick={() => handleSearch(t)} style={{
-                    background: "#1a1a26", border: "1px solid #2a2a36",
-                    color: "#aaa", borderRadius: 20,
-                    padding: "7px 16px", fontSize: 13,
-                    cursor: "pointer", transition: "all .2s",
-                  }}>🔍 {t}</button>
-                ))}
+          {item.score > 0 && (
+            <div style={{ position:"absolute",bottom:8,right:8,background:"rgba(0,0,0,.8)",color:"#f59e0b",fontSize:10,fontWeight:700,padding:"2px 6px",borderRadius:4 }}>⭐ {item.score}</div>
+          )}
+          {/* Title on image */}
+          {big && (
+            <div style={{ position:"absolute",bottom:0,left:0,right:0,padding:"12px 14px" }}>
+              <div style={{ fontWeight:700,fontSize:15,color:"#fff",marginBottom:4,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" }}>{item.title}</div>
+              <div style={{ display:"flex",gap:8,alignItems:"center" }}>
+                <span style={{ fontSize:10,color:"#aaa" }}>{item.type}</span>
+                {item.genre && <span style={{ fontSize:10,color:"#aaa" }}>· {item.genre}</span>}
+                {item.release_year && <span style={{ fontSize:10,color:"#aaa" }}>· {item.release_year}</span>}
               </div>
             </div>
+          )}
+        </div>
+        {/* Info below — small cards only */}
+        {!big && (
+          <div style={{ padding:"8px 10px" }}>
+            <div style={{ fontWeight:600,fontSize:12,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",marginBottom:3 }}>{item.title}</div>
+            <div style={{ fontSize:10,color:"#666688" }}>{item.type}{item.release_year?` · ${item.release_year}`:""}</div>
+          </div>
+        )}
+      </div>
+    );
+  }
 
-            {/* Search history */}
-            {history.length > 0 && (
-              <div style={{ marginBottom: 28 }}>
-                <div style={{
-                  display: "flex", justifyContent: "space-between",
-                  alignItems: "center", marginBottom: 12,
-                }}>
-                  <div style={{
-                    fontSize: 12, color: "#555", fontWeight: 700,
-                    textTransform: "uppercase", letterSpacing: 1,
-                  }}>🕐 Recent Searches</div>
-                  <button onClick={clearHistory} style={{
-                    background: "none", border: "none",
-                    color: "#e50914", fontSize: 12, cursor: "pointer",
-                  }}>Clear all</button>
+  // Result row (list view)
+  function ResultRow({ item }) {
+    const isPremium = item.is_premium && !["plan_premium","premium","plan_annual"].includes(user?.plan);
+    return (
+      <div
+        onClick={() => playContent(item)}
+        style={{ display:"flex",alignItems:"center",gap:14,padding:"10px 16px",cursor:"pointer",borderBottom:"1px solid #1a1a2e11",transition:"background .15s" }}
+        onMouseEnter={e=>e.currentTarget.style.background="rgba(255,255,255,.03)"}
+        onMouseLeave={e=>e.currentTarget.style.background="transparent"}
+      >
+        {/* Thumb */}
+        <div style={{ width:72,height:46,borderRadius:7,background:"#0a0a14",flexShrink:0,position:"relative",overflow:"hidden" }}>
+          {item.thumbnail
+            ? <img src={item.thumbnail} alt="" style={{ width:"100%",height:"100%",objectFit:"cover" }} onError={e=>e.target.style.display="none"}/>
+            : <div style={{ width:"100%",height:"100%",display:"flex",alignItems:"center",justifyContent:"center",fontSize:20,opacity:.3 }}>🎬</div>
+          }
+          {item.is_live && <div style={{ position:"absolute",top:3,left:3,background:R,color:"#fff",fontSize:7,fontWeight:800,padding:"1px 4px",borderRadius:2,letterSpacing:1 }}>LIVE</div>}
+        </div>
+        {/* Info */}
+        <div style={{ flex:1,minWidth:0 }}>
+          <div style={{ fontWeight:600,fontSize:14,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",marginBottom:3 }}>{item.title}</div>
+          <div style={{ display:"flex",gap:8,flexWrap:"wrap" }}>
+            <span style={{ fontSize:11,color:"#666688" }}>{item.type}</span>
+            {item.genre && <span style={{ fontSize:11,color:"#555577" }}>· {item.genre}</span>}
+            {item.language && <span style={{ fontSize:11,color:"#555577" }}>· {item.language}</span>}
+            {item.release_year && <span style={{ fontSize:11,color:"#555577" }}>· {item.release_year}</span>}
+          </div>
+        </div>
+        {/* Right side */}
+        <div style={{ display:"flex",flexDirection:"column",alignItems:"flex-end",gap:4,flexShrink:0 }}>
+          {isPremium
+            ? <span style={{ background:"#f59e0b22",color:"#f59e0b",fontSize:10,fontWeight:700,padding:"2px 8px",borderRadius:20,border:"1px solid #f59e0b44" }}>👑 Premium</span>
+            : <div style={{ width:32,height:32,borderRadius:"50%",background:"rgba(229,9,20,.1)",border:"1px solid rgba(229,9,20,.3)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:13 }}>▶</div>
+          }
+          {item.score > 0 && <span style={{ fontSize:10,color:"#f59e0b",fontWeight:600 }}>⭐ {item.score}</span>}
+        </div>
+      </div>
+    );
+  }
+
+  // Mini player modal
+  function MiniPlayer({ item, onClose: closePlayer }) {
+    const vRef   = useRef(null);
+    const hlsRef = useRef(null);
+    const url    = item.stream_url || item.embed_url || "";
+    const isEmbed= url.includes("youtube.com/embed")||url.includes("iframe");
+
+    useEffect(() => {
+      if (!url || isEmbed) return;
+      const v = vRef.current; if (!v) return;
+      try {
+        if (window.Hls && window.Hls.isSupported()) {
+          const hls = new window.Hls();
+          hlsRef.current = hls;
+          hls.loadSource(url);
+          hls.attachMedia(v);
+          hls.on(window.Hls.Events.MANIFEST_PARSED, () => v.play().catch(()=>{}));
+        } else {
+          v.src = url;
+          v.play().catch(()=>{});
+        }
+      } catch(e) {}
+      return () => { if (hlsRef.current) { hlsRef.current.destroy(); hlsRef.current = null; } };
+    }, [url]);
+
+    return (
+      <div style={{ position:"fixed",inset:0,zIndex:2000,background:"rgba(0,0,0,.95)",display:"flex",flexDirection:"column",fontFamily:"Inter,sans-serif" }} onClick={closePlayer}>
+        <div onClick={e=>e.stopPropagation()}>
+          {/* Header */}
+          <div style={{ display:"flex",alignItems:"center",gap:12,padding:"12px 16px",background:"rgba(0,0,0,.5)" }}>
+            <button onClick={closePlayer} style={{ background:"none",border:"none",color:"#fff",fontSize:22,cursor:"pointer",padding:4 }}>←</button>
+            <div style={{ flex:1,minWidth:0 }}>
+              <div style={{ fontWeight:700,fontSize:15,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" }}>{item.title}</div>
+              <div style={{ fontSize:11,color:"#666688" }}>{item.type} · {item.genre}</div>
+            </div>
+            {item.is_live && <div style={{ background:R,color:"#fff",fontSize:9,fontWeight:800,padding:"3px 8px",borderRadius:3,letterSpacing:1.5,animation:"pulse 1.5s infinite" }}>● LIVE</div>}
+          </div>
+          {/* Player */}
+          <div style={{ width:"100%",paddingTop:"56.25%",position:"relative",background:"#000" }}>
+            {url ? (
+              isEmbed
+                ? <iframe src={url} style={{ position:"absolute",inset:0,width:"100%",height:"100%",border:"none" }} allowFullScreen allow="autoplay"/>
+                : <video ref={vRef} style={{ position:"absolute",inset:0,width:"100%",height:"100%",objectFit:"contain" }} controls playsInline/>
+            ) : (
+              <div style={{ position:"absolute",inset:0,display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",gap:12 }}>
+                <div style={{ fontSize:40 }}>🎬</div>
+                <div style={{ color:"#666688",fontSize:13 }}>No stream URL available</div>
+              </div>
+            )}
+          </div>
+          {/* Info */}
+          <div style={{ padding:"16px 16px 24px",background:"#0a0a14",maxHeight:"35vh",overflowY:"auto" }}>
+            <div style={{ fontWeight:700,fontSize:18,marginBottom:8 }}>{item.title}</div>
+            <div style={{ display:"flex",gap:8,marginBottom:12,flexWrap:"wrap" }}>
+              {item.type && <span style={{ background:"rgba(21,101,192,.2)",color:"#60a5fa",fontSize:11,fontWeight:600,padding:"2px 9px",borderRadius:20 }}>{item.type}</span>}
+              {item.genre && <span style={{ background:"rgba(255,255,255,.06)",color:"#aaa",fontSize:11,padding:"2px 9px",borderRadius:20 }}>{item.genre}</span>}
+              {item.rating && <span style={{ background:"rgba(255,255,255,.06)",color:"#aaa",fontSize:11,padding:"2px 9px",borderRadius:20 }}>{item.rating}</span>}
+              {item.release_year && <span style={{ background:"rgba(255,255,255,.06)",color:"#aaa",fontSize:11,padding:"2px 9px",borderRadius:20 }}>{item.release_year}</span>}
+              {item.score > 0 && <span style={{ background:"rgba(245,158,11,.12)",color:"#f59e0b",fontSize:11,fontWeight:700,padding:"2px 9px",borderRadius:20 }}>⭐ {item.score}/10</span>}
+            </div>
+            {item.description && <div style={{ fontSize:13,color:"#888",lineHeight:1.7 }}>{item.description}</div>}
+            <button
+              onClick={()=>{ closePlayer(); onNavigate && onNavigate("home"); }}
+              style={{ width:"100%",background:R,color:"#fff",border:"none",borderRadius:10,padding:"13px",fontSize:14,fontWeight:700,cursor:"pointer",fontFamily:"Inter,sans-serif",marginTop:16 }}
+            >
+              ▶ Open Full Player
+            </button>
+          </div>
+        </div>
+        <style>{`@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}`}</style>
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ minHeight:"100vh",background:"#07070c",fontFamily:"Inter,sans-serif",paddingBottom:80 }}>
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+        *{box-sizing:border-box;margin:0;padding:0;}
+        @keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+        @keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+        .card-hover:hover .play-overlay{opacity:1!important;}
+        input{-webkit-appearance:none;}
+        input:focus{outline:none;}
+      `}</style>
+
+      {/* Mini player */}
+      {selected && <MiniPlayer item={selected} onClose={()=>setSelected(null)}/>}
+
+      {/* Search bar */}
+      <div style={{ position:"sticky",top:0,zIndex:100,background:"rgba(7,7,12,.97)",backdropFilter:"blur(16px)",borderBottom:"1px solid #1a1a2e",padding:"12px 16px" }}>
+        <div style={{ display:"flex",alignItems:"center",gap:10 }}>
+          <button onClick={onClose||(() => onNavigate("home"))} style={{ background:"none",border:"none",color:"#aaa",fontSize:22,cursor:"pointer",padding:"2px 6px",flexShrink:0 }}>←</button>
+          <div style={{ flex:1,position:"relative" }}>
+            <span style={{ position:"absolute",left:12,top:"50%",transform:"translateY(-50%)",fontSize:16,color:"#444466",pointerEvents:"none" }}>🔍</span>
+            <input
+              ref={inputRef}
+              value={query}
+              onChange={e=>setQuery(e.target.value)}
+              placeholder="Search movies, series, live..."
+              style={{ width:"100%",background:"#111120",border:"1.5px solid #1a1a2e",borderRadius:25,color:"#e2e2f0",fontSize:14,padding:"11px 40px 11px 40px",fontFamily:"Inter,sans-serif",transition:"border-color .2s" }}
+              onFocus={e=>e.target.style.borderColor=R}
+              onBlur={e=>e.target.style.borderColor="#1a1a2e"}
+              autoComplete="off"
+            />
+            {query && (
+              <button onClick={()=>{setQuery("");setResults([]);}} style={{ position:"absolute",right:12,top:"50%",transform:"translateY(-50%)",background:"none",border:"none",color:"#555",fontSize:16,cursor:"pointer",padding:2 }}>✕</button>
+            )}
+          </div>
+        </div>
+
+        {/* Filter tabs */}
+        {showResults && (
+          <div style={{ display:"flex",gap:6,marginTop:10,overflowX:"auto",paddingBottom:2 }}>
+            {FILTERS.map(f=>(
+              <button key={f.id} onClick={()=>setFilter(f.id)} style={{ background:filter===f.id?"rgba(229,9,20,.18)":"rgba(255,255,255,.05)",border:`1px solid ${filter===f.id?"rgba(229,9,20,.4)":"#1a1a2e"}`,color:filter===f.id?R:"#666688",borderRadius:20,padding:"5px 14px",fontSize:12,fontWeight:filter===f.id?700:500,cursor:"pointer",whiteSpace:"nowrap",fontFamily:"Inter,sans-serif" }}>
+                {f.label}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <div style={{ padding:"0 0 20px" }}>
+
+        {/* ── SEARCH RESULTS ── */}
+        {showResults && (
+          <div style={{ animation:"fadeIn .25s ease" }}>
+            {loading ? (
+              <div style={{ display:"flex",alignItems:"center",justifyContent:"center",padding:"48px 0",gap:12 }}>
+                <div style={{ width:22,height:22,border:"2px solid #1a1a2e",borderTop:`2px solid ${R}`,borderRadius:"50%",animation:"spin .7s linear infinite" }}/>
+                <span style={{ color:"#444466",fontSize:13 }}>Searching...</span>
+                <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
+              </div>
+            ) : results.length === 0 ? (
+              <div style={{ textAlign:"center",padding:"56px 24px",animation:"fadeIn .3s ease" }}>
+                <div style={{ fontSize:52,marginBottom:14,opacity:.3 }}>🔍</div>
+                <div style={{ fontSize:16,fontWeight:600,color:"#e2e2f0",marginBottom:8 }}>No results for "{query}"</div>
+                <div style={{ fontSize:13,color:"#444466",lineHeight:1.6 }}>
+                  Try different keywords<br/>or check spelling
                 </div>
-                {history.map(h => (
-                  <div key={h} onClick={() => handleSearch(h)} style={{
-                    display: "flex", alignItems: "center", gap: 12,
-                    padding: "11px 0", borderBottom: "1px solid #1a1a2611",
-                    cursor: "pointer",
-                  }}>
-                    <span style={{ color: "#555", fontSize: 14 }}>🕐</span>
-                    <span style={{ flex: 1, fontSize: 14, color: "#aaa" }}>{h}</span>
-                    <button onClick={e => {
-                      e.stopPropagation();
-                      const updated = history.filter(x => x !== h);
-                      setHistory(updated);
-                      localStorage.setItem("sx_search_history", JSON.stringify(updated));
-                    }} style={{
-                      background: "none", border: "none",
-                      color: "#333", fontSize: 14, cursor: "pointer",
-                    }}>✕</button>
+              </div>
+            ) : (
+              <div>
+                <div style={{ padding:"12px 16px",fontSize:12,color:"#444466",fontWeight:600 }}>
+                  {results.length} result{results.length!==1?"s":""} for "{query}"
+                </div>
+                <div className="card" style={{ margin:"0 16px 16px",borderRadius:12,overflow:"hidden" }}>
+                  {results.map(item => <ResultRow key={item.id} item={item}/>)}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ── HOME STATE ── */}
+        {showHome && (
+          <div style={{ animation:"fadeIn .3s ease" }}>
+
+            {/* Recent searches */}
+            {recent.length > 0 && (
+              <div style={{ padding:"16px 16px 0" }}>
+                <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12 }}>
+                  <div style={{ fontSize:13,fontWeight:700,color:"#aaa" }}>Recent Searches</div>
+                  <button onClick={clearRecent} style={{ background:"none",border:"none",color:"#555",fontSize:12,cursor:"pointer",fontFamily:"Inter,sans-serif" }}>Clear</button>
+                </div>
+                <div style={{ display:"flex",gap:8,flexWrap:"wrap" }}>
+                  {recent.map(r=>(
+                    <button key={r} onClick={()=>setQuery(r)} style={{ background:"rgba(255,255,255,.06)",border:"1px solid #1a1a2e",color:"#aaa",borderRadius:20,padding:"6px 14px",fontSize:12,cursor:"pointer",fontFamily:"Inter,sans-serif",display:"flex",alignItems:"center",gap:6 }}>
+                      🕐 {r}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Trending */}
+            {trending.length > 0 && (
+              <div style={{ padding:"20px 0 0" }}>
+                <div style={{ padding:"0 16px",fontSize:14,fontWeight:800,marginBottom:14,color:"#e2e2f0" }}>
+                  🔥 Trending Now
+                </div>
+                {/* Top 1 — big card */}
+                {trending[0] && (
+                  <div style={{ padding:"0 16px",marginBottom:14 }}>
+                    <div
+                      onClick={()=>playContent(trending[0])}
+                      style={{ borderRadius:12,overflow:"hidden",background:"#0e0e1e",border:"1px solid #1a1a2e",cursor:"pointer",position:"relative" }}
+                    >
+                      <div style={{ paddingTop:"45%",position:"relative" }}>
+                        {trending[0].thumbnail
+                          ? <img src={trending[0].thumbnail} alt="" style={{ position:"absolute",inset:0,width:"100%",height:"100%",objectFit:"cover" }} onError={e=>e.target.style.display="none"}/>
+                          : <div style={{ position:"absolute",inset:0,display:"flex",alignItems:"center",justifyContent:"center",fontSize:48,opacity:.2 }}>🎬</div>
+                        }
+                        <div style={{ position:"absolute",inset:0,background:"linear-gradient(to top,rgba(0,0,0,.92) 0%,transparent 50%)" }}/>
+                        <div style={{ position:"absolute",top:12,left:12,background:R,color:"#fff",fontSize:10,fontWeight:800,padding:"3px 10px",borderRadius:4 }}>#1 TRENDING</div>
+                        {trending[0].is_live && <div style={{ position:"absolute",top:12,right:12,background:R,color:"#fff",fontSize:9,fontWeight:800,padding:"2px 8px",borderRadius:3,letterSpacing:1.5 }}>● LIVE</div>}
+                        <div style={{ position:"absolute",bottom:0,left:0,right:0,padding:"16px" }}>
+                          <div style={{ fontWeight:800,fontSize:18,marginBottom:6 }}>{trending[0].title}</div>
+                          <div style={{ display:"flex",gap:10,alignItems:"center" }}>
+                            <span style={{ fontSize:12,color:"#aaa" }}>{trending[0].type}</span>
+                            <span style={{ fontSize:12,color:"#aaa" }}>· {trending[0].genre}</span>
+                            {trending[0].score>0 && <span style={{ fontSize:12,color:"#f59e0b",fontWeight:700 }}>⭐ {trending[0].score}</span>}
+                          </div>
+                        </div>
+                        {/* Play button */}
+                        <div style={{ position:"absolute",inset:0,display:"flex",alignItems:"center",justifyContent:"center" }}>
+                          <div style={{ width:56,height:56,borderRadius:"50%",background:"rgba(229,9,20,.85)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:22,boxShadow:"0 4px 20px rgba(229,9,20,.4)" }}>▶</div>
+                        </div>
+                      </div>
+                    </div>
                   </div>
-                ))}
+                )}
+
+                {/* Rest — horizontal scroll */}
+                <div style={{ overflowX:"auto",paddingLeft:16,paddingRight:16,display:"flex",gap:10 }}>
+                  {trending.slice(1).map((item,i)=>(
+                    <div key={item.id} onClick={()=>playContent(item)} style={{ flexShrink:0,width:"clamp(120px,25vw,160px)",cursor:"pointer",position:"relative" }}>
+                      <div style={{ paddingTop:"140%",borderRadius:9,overflow:"hidden",background:"#0e0e1e",border:"1px solid #1a1a2e",position:"relative" }}>
+                        {item.thumbnail
+                          ? <img src={item.thumbnail} alt="" style={{ position:"absolute",inset:0,width:"100%",height:"100%",objectFit:"cover" }} onError={e=>e.target.style.display="none"}/>
+                          : <div style={{ position:"absolute",inset:0,display:"flex",alignItems:"center",justifyContent:"center",fontSize:24,opacity:.2 }}>🎬</div>
+                        }
+                        <div style={{ position:"absolute",inset:0,background:"linear-gradient(to top,rgba(0,0,0,.85) 0%,transparent 55%)" }}/>
+                        <div style={{ position:"absolute",top:6,left:6,background:"rgba(0,0,0,.7)",color:"#f59e0b",fontSize:10,fontWeight:800,padding:"2px 7px",borderRadius:4 }}>#{i+2}</div>
+                        {item.is_live && <div style={{ position:"absolute",top:6,right:6,background:R,color:"#fff",fontSize:7,fontWeight:800,padding:"1px 5px",borderRadius:2,letterSpacing:1 }}>LIVE</div>}
+                        <div style={{ position:"absolute",bottom:0,left:0,right:0,padding:"8px" }}>
+                          <div style={{ fontSize:11,fontWeight:700,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" }}>{item.title}</div>
+                          <div style={{ fontSize:9,color:"#888",marginTop:2 }}>{item.type}</div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </div>
             )}
 
             {/* Browse by genre */}
-            <div>
-              <div style={{
-                fontSize: 12, color: "#555", fontWeight: 700,
-                textTransform: "uppercase", letterSpacing: 1,
-                marginBottom: 12,
-              }}>🎬 Browse by Genre</div>
-              <div style={{
-                display: "grid",
-                gridTemplateColumns: "repeat(auto-fill, minmax(140px, 1fr))",
-                gap: 10,
-              }}>
+            <div style={{ padding:"24px 16px 0" }}>
+              <div style={{ fontSize:14,fontWeight:800,marginBottom:14,color:"#e2e2f0" }}>Browse by Genre</div>
+              <div style={{ display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(140px,1fr))",gap:10 }}>
                 {[
-                  { g:"Action",      emoji:"💥", col:"#e50914" },
-                  { g:"Drama",       emoji:"🎭", col:"#f59e0b" },
-                  { g:"Sci-Fi",      emoji:"🚀", col:"#1d9bf0" },
-                  { g:"Thriller",    emoji:"🔪", col:"#a855f7" },
-                  { g:"Horror",      emoji:"👻", col:"#f87171" },
-                  { g:"Romance",     emoji:"💕", col:"#ec4899" },
-                  { g:"Kids",        emoji:"🧸", col:"#84cc16" },
-                  { g:"Sports",      emoji:"🏆", col:"#00c853" },
-                  { g:"Documentary", emoji:"🎥", col:"#38bdf8" },
-                  { g:"News",        emoji:"📺", col:"#f97316" },
-                ].map(({ g, emoji, col }) => (
-                  <div key={g} onClick={() => { setGenre(g); setQuery(g); }}
-                    style={{
-                      background: `${col}18`,
-                      border: `1px solid ${col}33`,
-                      borderRadius: 10, padding: "14px 16px",
-                      cursor: "pointer", textAlign: "center",
-                      transition: "all .2s",
-                    }}
+                  {label:"Action",     icon:"💥", color:"#e50914"},
+                  {label:"Drama",      icon:"🎭", color:"#8b5cf6"},
+                  {label:"Comedy",     icon:"😂", color:"#f59e0b"},
+                  {label:"Thriller",   icon:"😱", color:"#1565c0"},
+                  {label:"Romance",    icon:"❤️", color:"#ec4899"},
+                  {label:"Sci-Fi",     icon:"🚀", color:"#06b6d4"},
+                  {label:"Kids",       icon:"🧒", color:"#84cc16"},
+                  {label:"Cricket",    icon:"🏏", color:"#00c853"},
+                  {label:"Football",   icon:"⚽", color:"#f97316"},
+                  {label:"News",       icon:"📰", color:"#64748b"},
+                  {label:"Horror",     icon:"👻", color:"#7c3aed"},
+                  {label:"Nature",     icon:"🌿", color:"#16a34a"},
+                ].map(g=>(
+                  <button key={g.label} onClick={()=>{setQuery(g.label);setFilter("all");}} style={{ background:`${g.color}18`,border:`1px solid ${g.color}33`,borderRadius:10,padding:"14px 12px",cursor:"pointer",textAlign:"left",transition:"all .15s",fontFamily:"Inter,sans-serif" }}
+                    onMouseEnter={e=>{e.currentTarget.style.background=`${g.color}28`;e.currentTarget.style.borderColor=`${g.color}66`;}}
+                    onMouseLeave={e=>{e.currentTarget.style.background=`${g.color}18`;e.currentTarget.style.borderColor=`${g.color}33`;}}
                   >
-                    <div style={{ fontSize: 28, marginBottom: 6 }}>{emoji}</div>
-                    <div style={{ fontSize: 12, fontWeight: 600, color: col }}>{g}</div>
-                  </div>
+                    <div style={{ fontSize:22,marginBottom:5 }}>{g.icon}</div>
+                    <div style={{ fontSize:12,fontWeight:700,color:"#e2e2f0" }}>{g.label}</div>
+                  </button>
                 ))}
               </div>
             </div>
+
           </div>
         )}
-
-        {/* LOADING STATE */}
-        {loading && (
-          <div style={{
-            display: "flex", alignItems: "center",
-            justifyContent: "center", flexDirection: "column",
-            gap: 16, padding: 60,
-          }}>
-            <div style={{
-              width: 40, height: 40,
-              border: "3px solid #1a1a26",
-              borderTop: "3px solid #e50914",
-              borderRadius: "50%",
-              animation: "spin 0.8s linear infinite",
-            }}/>
-            <div style={{ color: "#555", fontSize: 13 }}>
-              Searching for "{query}"...
-            </div>
-            <style>{`@keyframes spin { to { transform: rotate(360deg); }}`}</style>
-          </div>
-        )}
-
-        {/* NO RESULTS */}
-        {!loading && searched && results.length === 0 && (
-          <div style={{
-            textAlign: "center", padding: 60,
-          }}>
-            <div style={{ fontSize: 56, marginBottom: 16 }}>🔍</div>
-            <div style={{
-              fontSize: 18, fontWeight: 700,
-              marginBottom: 8,
-            }}>No results found</div>
-            <div style={{ color: "#555", fontSize: 14, marginBottom: 24 }}>
-              No results for "{query}".<br/>
-              Try a different keyword or browse by genre.
-            </div>
-            <button onClick={() => { setQuery(""); setGenre("All"); setType("All"); }} style={{
-              background: "#e50914", color: "#fff", border: "none",
-              borderRadius: 8, padding: "10px 24px",
-              fontWeight: 700, fontSize: 13, cursor: "pointer",
-            }}>Clear Search</button>
-          </div>
-        )}
-
-        {/* RESULTS */}
-        {!loading && results.length > 0 && (
-          <div>
-            <div style={{
-              fontSize: 12, color: "#555", marginBottom: 16,
-              fontWeight: 600,
-            }}>
-              {results.length} result{results.length !== 1 ? "s" : ""} for "{query}"
-            </div>
-            <div style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))",
-              gap: 14,
-            }}>
-              {results.map(item => (
-                <SearchCard key={item.id} item={item} onPlay={onPlay}/>
-              ))}
-            </div>
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
-
-function SearchCard({ item, onPlay }) {
-  const [hov, setHov] = useState(false);
-  const isLive = item.tags.includes("LIVE");
-
-  return (
-    <div
-      onMouseEnter={() => setHov(true)}
-      onMouseLeave={() => setHov(false)}
-      onClick={() => onPlay(item)}
-      style={{
-        background: "#0f0f18",
-        border: `1.5px solid ${hov ? item.accent + "88" : "#1a1a26"}`,
-        borderRadius: 10, overflow: "hidden",
-        cursor: "pointer",
-        transform: hov ? "scale(1.04) translateY(-3px)" : "scale(1)",
-        transition: "all .22s",
-        boxShadow: hov ? `0 10px 30px ${item.accent}22` : "none",
-      }}
-    >
-      {/* Thumbnail */}
-      <div style={{
-        height: 100, fontSize: 40,
-        background: `linear-gradient(135deg, ${item.accent}22, #0a0a0f)`,
-        display: "flex", alignItems: "center",
-        justifyContent: "center", position: "relative",
-      }}>
-        {item.emoji}
-        {isLive && (
-          <div style={{
-            position: "absolute", top: 6, left: 6,
-            background: "#e50914", color: "#fff",
-            fontSize: 9, fontWeight: 800,
-            padding: "2px 7px", borderRadius: 3, letterSpacing: 2,
-          }}>● LIVE</div>
-        )}
-        <div style={{
-          position: "absolute", top: 6, right: 6,
-          background: "rgba(0,0,0,.7)", color: "#aaa",
-          fontSize: 9, padding: "2px 6px",
-          borderRadius: 3, fontWeight: 600,
-        }}>{item.type}</div>
-        {hov && (
-          <div style={{
-            position: "absolute", inset: 0,
-            background: "rgba(0,0,0,.5)",
-            display: "flex", alignItems: "center",
-            justifyContent: "center",
-          }}>
-            <div style={{
-              width: 38, height: 38, borderRadius: "50%",
-              background: item.accent,
-              display: "flex", alignItems: "center",
-              justifyContent: "center", fontSize: 14,
-            }}>▶</div>
-          </div>
-        )}
-      </div>
-
-      {/* Info */}
-      <div style={{ padding: "10px 12px" }}>
-        <div style={{ fontWeight: 700, fontSize: 12, marginBottom: 3 }}>
-          {item.title}
-        </div>
-        <div style={{
-          display: "flex", justifyContent: "space-between",
-          alignItems: "center", marginBottom: 4,
-        }}>
-          <span style={{ fontSize: 10, color: item.accent, fontWeight: 600 }}>
-            {item.genre}
-          </span>
-          {item.score > 0 && (
-            <span style={{ fontSize: 10, color: "#f59e0b" }}>
-              ★ {item.score}
-            </span>
-          )}
-        </div>
-        <div style={{ fontSize: 10, color: "#555" }}>
-          {item.year} · {item.lang}
-        </div>
       </div>
     </div>
   );
