@@ -16,7 +16,7 @@ body{background:#060610;color:#e2e2f0;font-family:'Inter',sans-serif;}
 @keyframes slideUp{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
 @keyframes spin{to{transform:rotate(360deg)}}
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}
-.inp{width:100%;background:#0c0c1e;border:1px solid #1e1e32;border-radius:9px;color:#e2e2f0;font-family:'Inter',sans-serif;font-size:13px;padding:10px 13px;outline:none;transition:border-color .2s;}
+.inp{width:100%;background:#0c0c1e;border:1.5px solid #1e1e32;border-radius:9px;color:#e2e2f0;font-family:'Inter',sans-serif;font-size:13px;padding:10px 13px;outline:none;transition:border-color .2s;}
 .inp:focus{border-color:#e50914;}
 .inp::placeholder{color:#2a2a44;}
 .nav{display:flex;align-items:center;gap:10px;padding:9px 14px;border-radius:10px;cursor:pointer;font-size:12.5px;font-weight:500;color:#4a4a6a;transition:all .15s;white-space:nowrap;}
@@ -28,14 +28,14 @@ body{background:#060610;color:#e2e2f0;font-family:'Inter',sans-serif;}
 .tbl td{padding:10px 14px;font-size:13px;border-bottom:1px solid #111120;}
 .tbl tr:last-child td{border-bottom:none;}
 .tbl tr:hover td{background:rgba(255,255,255,.018);}
-.upload-zone{border:2px dashed #1a1a2e;border-radius:12px;padding:32px 20px;text-align:center;cursor:pointer;transition:all .2s;background:#0a0a18;}
-.upload-zone:hover{border-color:#e50914;background:rgba(229,9,20,.04);}
 .kpi{position:relative;overflow:hidden;padding:20px 22px;border-radius:14px;background:#0e0e20;border:1px solid #1a1a2e;}
-.src-tab{background:rgba(255,255,255,.04);border:1px solid #1a1a2e;color:#666688;border-radius:8px;padding:6px 14px;font-size:12px;font-weight:600;cursor:pointer;transition:all .15s;font-family:'Inter',sans-serif;}
+.upload-zone{border:2px dashed #1a1a2e;border-radius:12px;padding:28px 20px;text-align:center;cursor:pointer;transition:all .2s;background:#0a0a18;}
+.upload-zone:hover,.upload-zone.drag{border-color:#e50914;background:rgba(229,9,20,.04);}
+.src-tab{background:rgba(255,255,255,.04);border:1px solid #1a1a2e;color:#666688;border-radius:8px;padding:7px 16px;font-size:12px;font-weight:600;cursor:pointer;transition:all .15s;font-family:'Inter',sans-serif;}
 .src-tab.on{background:rgba(229,9,20,.18);border-color:rgba(229,9,20,.4);color:#e50914;}
 `;
 
-const PAGES = [
+const PAGES=[
   {id:"dashboard",icon:"📊",label:"Dashboard"},
   {id:"content",  icon:"🎬",label:"Movies & Series"},
   {id:"live",     icon:"🔴",label:"Live Channels"},
@@ -46,26 +46,18 @@ const PAGES = [
   {id:"settings", icon:"⚙️",label:"Settings"},
 ];
 
-const TYPES   = ["Movie","Web Series","Documentary","Short Film"];
-const GENRES  = ["Action","Drama","Sci-Fi","Thriller","Comedy","Romance","Kids","Cricket","Football","Racing","News","Documentary","Nature","Horror","Sports","Music","Reality","Anime"];
-const LANGS   = ["Hindi","English","Kannada","Tamil","Telugu","Bengali","Malayalam","Punjabi","Marathi","Gujarati","Bhojpuri","Odia","Urdu"];
-const RATINGS = ["U","U/A","U/A 7+","U/A 13+","U/A 16+","A"];
+const TYPES  =["Movie","Web Series","Documentary","Short Film"];
+const GENRES =["Action","Drama","Sci-Fi","Thriller","Comedy","Romance","Kids","Cricket","Football","Racing","News","Documentary","Nature","Horror","Sports","Music","Reality","Anime"];
+const LANGS  =["Hindi","English","Kannada","Tamil","Telugu","Bengali","Malayalam","Punjabi","Marathi","Gujarati","Bhojpuri","Odia","Urdu"];
+const RATINGS=["U","U/A","U/A 7+","U/A 13+","U/A 16+","A"];
+const fN=n=>n>=1e7?(n/1e7).toFixed(1)+"Cr":n>=1e5?(n/1e5).toFixed(1)+"L":n>=1e3?(n/1e3).toFixed(1)+"K":String(n||0);
 
-const fN = n => n>=1e7?(n/1e7).toFixed(1)+"Cr":n>=1e5?(n/1e5).toFixed(1)+"L":n>=1e3?(n/1e3).toFixed(1)+"K":String(n||0);
-const fR = n => "₹"+(n>=1e5?(n/1e5).toFixed(1)+"L":n>=1e3?Math.round(n/1e3)+"K":n||0);
-
-function Chip({label,color="#888",small}){
-  return <span style={{background:`${color}22`,color,fontSize:small?10:11,fontWeight:700,padding:small?"1px 7px":"2px 9px",borderRadius:20,border:`1px solid ${color}33`,whiteSpace:"nowrap"}}>{label}</span>;
+function Chip({label,color="#888"}){
+  return <span style={{background:`${color}22`,color,fontSize:11,fontWeight:700,padding:"2px 9px",borderRadius:20,border:`1px solid ${color}33`,whiteSpace:"nowrap"}}>{label}</span>;
 }
-
 function Btn({children,onClick,color=R,outline,ghost,danger,small,disabled,sx={}}){
-  return(
-    <button disabled={disabled} onClick={onClick} style={{background:ghost?"transparent":danger?"rgba(248,113,113,.1)":outline?`${color}16`:color,border:`1px solid ${danger?"rgba(248,113,113,.3)":outline||ghost?color+"44":"transparent"}`,color:outline||ghost||danger?(danger?"#f87171":color):"#fff",borderRadius:8,padding:small?"4px 11px":"8px 16px",fontSize:small?11:13,fontWeight:600,cursor:disabled?"not-allowed":"pointer",fontFamily:"'Inter',sans-serif",transition:"all .15s",whiteSpace:"nowrap",opacity:disabled?.55:1,...sx}}>
-      {children}
-    </button>
-  );
+  return <button disabled={disabled} onClick={onClick} style={{background:ghost?"transparent":danger?"rgba(248,113,113,.1)":outline?`${color}16`:color,border:`1px solid ${danger?"rgba(248,113,113,.3)":outline||ghost?color+"44":"transparent"}`,color:outline||ghost||danger?(danger?"#f87171":color):"#fff",borderRadius:8,padding:small?"4px 11px":"8px 16px",fontSize:small?11:13,fontWeight:600,cursor:disabled?"not-allowed":"pointer",fontFamily:"'Inter',sans-serif",transition:"all .15s",whiteSpace:"nowrap",opacity:disabled?.55:1,...sx}}>{children}</button>;
 }
-
 function Field({label,required,hint,children}){
   return(
     <div>
@@ -73,17 +65,12 @@ function Field({label,required,hint,children}){
         {label}{required&&<span style={{color:R}}> *</span>}
       </label>
       {children}
-      {hint&&<div style={{fontSize:11,color:"#2a2a44",marginTop:4}}>{hint}</div>}
+      {hint&&<div style={{fontSize:11,color:"#2a2a44",marginTop:4,lineHeight:1.5}}>{hint}</div>}
     </div>
   );
 }
-
 function Modal({title,onClose,children,wide}){
-  useEffect(()=>{
-    const fn=e=>{if(e.key==="Escape")onClose();};
-    window.addEventListener("keydown",fn);
-    return()=>window.removeEventListener("keydown",fn);
-  },[]);
+  useEffect(()=>{const fn=e=>{if(e.key==="Escape")onClose();};window.addEventListener("keydown",fn);return()=>window.removeEventListener("keydown",fn);},[]);
   return(
     <div style={{position:"fixed",inset:0,zIndex:1000,background:"rgba(0,0,0,.88)",display:"flex",alignItems:"center",justifyContent:"center",padding:16,backdropFilter:"blur(6px)"}} onClick={onClose}>
       <div style={{background:"#0e0e1e",border:"1px solid #1a1a2e",borderRadius:16,width:"100%",maxWidth:wide?620:460,maxHeight:"92vh",overflowY:"auto",animation:"slideUp .22s ease"}} onClick={e=>e.stopPropagation()}>
@@ -96,7 +83,6 @@ function Modal({title,onClose,children,wide}){
     </div>
   );
 }
-
 function KPI({icon,label,value,color=R}){
   return(
     <div className="kpi">
@@ -109,170 +95,191 @@ function KPI({icon,label,value,color=R}){
     </div>
   );
 }
-
 function ToastMsg({msg,type="ok"}){
   const c=type==="err"?"#f87171":type==="warn"?"#f59e0b":"#00c853";
-  return(
-    <div style={{position:"fixed",bottom:24,right:24,zIndex:2000,background:"#0e0e1e",border:`1px solid ${c}44`,borderLeft:`3px solid ${c}`,borderRadius:10,padding:"12px 20px",fontSize:13,fontWeight:500,animation:"slideUp .22s ease",boxShadow:"0 8px 40px rgba(0,0,0,.7)",maxWidth:340}}>
-      {type==="ok"?"✅":type==="err"?"❌":"⚠️"} {msg}
-    </div>
-  );
+  return <div style={{position:"fixed",bottom:24,right:24,zIndex:2000,background:"#0e0e1e",border:`1px solid ${c}44`,borderLeft:`3px solid ${c}`,borderRadius:10,padding:"12px 20px",fontSize:13,fontWeight:500,animation:"slideUp .22s ease",boxShadow:"0 8px 40px rgba(0,0,0,.7)",maxWidth:340}}>{type==="ok"?"✅":type==="err"?"❌":"⚠️"} {msg}</div>;
 }
 
+/* ── Small stream preview ── */
 function SmallPreview({url,isLive=false}){
   const vRef=useRef(null);
   const hlsRef=useRef(null);
   const[status,setStatus]=useState("loading");
-  const isYT=url?.includes("youtube.com")||url?.includes("youtu.be");
-  function toEmbed(u){
-    try{
-      if(u.includes("youtube.com/watch?v="))return`https://www.youtube.com/embed/${new URL(u).searchParams.get("v")}?autoplay=1&mute=1&rel=0`;
-      if(u.includes("youtu.be/"))return`https://www.youtube.com/embed/${u.split("youtu.be/")[1]?.split("?")[0]}?autoplay=1&mute=1&rel=0`;
-    }catch(e){}
-    return u;
-  }
+  const isEmbed=url?.includes("drive.google.com")||url?.includes("dropbox.com")||url?.includes("1drv.ms")||url?.includes("embed");
+
   useEffect(()=>{
     if(!url)return;
-    if(isYT){setStatus("playing");return;}
-    const v=vRef.current;if(!v)return;
+    const v=vRef.current; if(!v) return;
     setStatus("loading");
     try{
-      if(Hls.isSupported()){
+      if(Hls.isSupported()&&(url.includes(".m3u8")||url.includes("m3u8"))){
         if(hlsRef.current)hlsRef.current.destroy();
         const hls=new Hls({enableWorker:true,lowLatencyMode:true});
-        hlsRef.current=hls;hls.loadSource(url);hls.attachMedia(v);
+        hlsRef.current=hls; hls.loadSource(url); hls.attachMedia(v);
         hls.on(Hls.Events.MANIFEST_PARSED,()=>{v.muted=true;v.play().catch(()=>{});setStatus("playing");});
         hls.on(Hls.Events.ERROR,(_,d)=>{if(d.fatal)setStatus("error");});
-      }else if(v.canPlayType("application/vnd.apple.mpegurl")){
-        v.src=url;v.muted=true;v.play().catch(()=>{});setStatus("playing");
-      }else{
-        v.src=url;v.muted=true;v.play().catch(()=>{});setStatus("playing");
+      } else {
+        v.src=url; v.muted=true;
+        v.oncanplay=()=>setStatus("playing");
+        v.onerror=()=>setStatus("error");
+        v.load();
       }
     }catch(e){setStatus("error");}
     return()=>{if(hlsRef.current){hlsRef.current.destroy();hlsRef.current=null;}};
   },[url]);
+
   return(
     <div style={{borderRadius:10,overflow:"hidden",background:"#000",border:"1px solid #1a1a2e",marginTop:12}}>
       <div style={{paddingTop:"56.25%",position:"relative"}}>
-        {isYT
-          ?<iframe src={toEmbed(url)} style={{position:"absolute",inset:0,width:"100%",height:"100%",border:"none"}} allow="autoplay;encrypted-media" allowFullScreen/>
-          :<>
-            <video ref={vRef} style={{position:"absolute",inset:0,width:"100%",height:"100%",objectFit:"contain"}} playsInline muted autoPlay/>
-            {status==="loading"&&<div style={{position:"absolute",inset:0,display:"flex",alignItems:"center",justifyContent:"center",background:"#000"}}><div style={{width:32,height:32,border:"2px solid #1a1a2e",borderTop:`2px solid ${R}`,borderRadius:"50%",animation:"spin .8s linear infinite"}}/></div>}
-            {status==="error"&&<div style={{position:"absolute",inset:0,display:"flex",alignItems:"center",justifyContent:"center",background:"#060610",flexDirection:"column",gap:8}}><span style={{fontSize:28}}>⚠️</span><div style={{fontSize:11,color:"#f87171",textAlign:"center",padding:"0 12px"}}>Stream error — check URL</div></div>}
-          </>
-        }
+        <video ref={vRef} style={{position:"absolute",inset:0,width:"100%",height:"100%",objectFit:"contain"}} playsInline muted controls/>
+        {status==="loading"&&<div style={{position:"absolute",inset:0,display:"flex",alignItems:"center",justifyContent:"center",background:"rgba(0,0,0,.8)"}}><div style={{width:32,height:32,border:"2px solid #1a1a2e",borderTop:`2px solid ${R}`,borderRadius:"50%",animation:"spin .8s linear infinite"}}/></div>}
+        {status==="error"&&<div style={{position:"absolute",inset:0,display:"flex",alignItems:"center",justifyContent:"center",background:"rgba(0,0,0,.8)",flexDirection:"column",gap:8}}><span style={{fontSize:28}}>⚠️</span><div style={{fontSize:11,color:"#f87171",textAlign:"center",padding:"0 12px"}}>Cannot preview — URL may need direct access</div></div>}
         {isLive&&<div style={{position:"absolute",top:8,left:8,background:R,color:"#fff",fontSize:9,fontWeight:800,padding:"2px 8px",borderRadius:3,letterSpacing:2,animation:"pulse 1.5s infinite",zIndex:5}}>● LIVE</div>}
-        {status==="playing"&&!isYT&&<div style={{position:"absolute",bottom:8,right:8,background:"rgba(0,0,0,.75)",color:"#aaa",fontSize:10,padding:"2px 8px",borderRadius:4,zIndex:5}}>🔇 Muted Preview</div>}
       </div>
-      <div style={{background:"#0a0a18",padding:"7px 14px",display:"flex",alignItems:"center",gap:8}}>
+      <div style={{background:"#0a0a18",padding:"6px 14px",display:"flex",alignItems:"center",gap:8}}>
         <div style={{width:8,height:8,borderRadius:"50%",background:status==="playing"?"#00c853":status==="error"?"#f87171":"#f59e0b",flexShrink:0}}/>
         <div style={{fontSize:11,color:status==="playing"?"#00c853":status==="error"?"#f87171":"#f59e0b",fontWeight:600}}>
-          {status==="playing"?"✓ Stream working":status==="error"?"✗ Stream error":"Connecting..."}
+          {status==="playing"?"✓ Video loaded":status==="error"?"✗ Cannot load — paste URL in URL tab":"Loading..."}
         </div>
       </div>
     </div>
   );
 }
 
+/* ── CONTENT FORM ── */
 const EMPTY={title:"",description:"",type:"Movie",genre:"Action",language:"Hindi",is_premium:false,is_featured:false,is_active:true,is_live:false,stream_url:"",embed_url:"",thumbnail:"",release_year:new Date().getFullYear(),rating:"U/A",director:"",score:0,tags:[]};
 
 function ContentForm({initial,isLiveForm=false,onSave,onCancel,saving}){
   const[form,setForm]=useState({...EMPTY,...(isLiveForm?{type:"Live",is_live:true}:{}),...initial});
   const[srcTab,setSrcTab]=useState("url");
   const[uploading,setUploading]=useState(false);
-  const[uploadPct,setUploadPct]=useState(0);
+  const[uploadPct,setUploadPct]=useState(false);
   const[tagInput,setTagInput]=useState("");
-  const[previewUrl,setPreviewUrl]=useState(initial?.embed_url||initial?.stream_url||"");
+  const[previewUrl,setPreviewUrl]=useState(initial?.stream_url||initial?.embed_url||"");
   const[dragging,setDragging]=useState(false);
   const fileRef=useRef();
   const thumbRef=useRef();
+
   const set=(k,v)=>setForm(f=>({...f,[k]:v}));
-  const canSave=form.title&&(form.stream_url||form.embed_url);
+
+  // FIX: canSave checks correctly
+  const streamOk=(form.stream_url||"").trim().length>5;
+  const embedOk =(form.embed_url||"").trim().length>5;
+  const titleOk =(form.title||"").trim().length>0;
+  const canSave = titleOk && (streamOk||embedOk);
 
   function onUrlChange(val,field){
     set(field,val);
-    setPreviewUrl(val.length>10?val:"");
+    if(val.trim().length>10) setPreviewUrl(val.trim());
+    else setPreviewUrl("");
   }
+
   function addTag(e){
     if(e.key==="Enter"&&tagInput.trim()){set("tags",[...(form.tags||[]),tagInput.trim().toUpperCase()]);setTagInput("");}
   }
-  async function uploadFile(file,isThumb=false){
+
+  async function uploadVideoFile(file){
     if(!file)return;
-    if(file.size>(isThumb?5:2048)*1024*1024){alert(`Max ${isThumb?"5MB":"2GB"}`);return;}
-    setUploading(true);setUploadPct(0);
+    // Check size — Supabase free = 50MB, paid = 5GB
+    if(file.size>50*1024*1024){
+      alert(`❌ File is ${(file.size/1024/1024).toFixed(0)}MB\n\nSupabase free plan only allows 50MB.\n\nOptions:\n1. Upgrade Supabase to Pro plan ($25/mo) for 100GB\n2. Use Cloudflare R2 (free 10GB) — upload there, paste URL here\n3. Upload to Google Drive → get direct link → paste in Cloud tab`);
+      return;
+    }
+    setUploading(true); setUploadPct(0);
     try{
       const ext=file.name.split(".").pop().toLowerCase();
-      const path=`${isThumb?"thumbs":"videos"}/${Date.now()}.${ext}`;
-      const{error}=await supabase.storage.from("streamx-media").upload(path,file,{cacheControl:"3600",upsert:false,onUploadProgress:e=>setUploadPct(Math.round((e.loaded/e.total)*100))});
+      const path=`videos/${Date.now()}_${Math.random().toString(36).slice(2,6)}.${ext}`;
+      const{error}=await supabase.storage.from("streamx-media").upload(path,file,{
+        cacheControl:"3600",upsert:false,
+        onUploadProgress:e=>setUploadPct(Math.round((e.loaded/e.total)*100)),
+      });
       if(error)throw error;
       const{data:ud}=supabase.storage.from("streamx-media").getPublicUrl(path);
-      if(isThumb){set("thumbnail",ud.publicUrl);}
-      else{set("stream_url",ud.publicUrl);setPreviewUrl(ud.publicUrl);setSrcTab("url");}
+      set("stream_url",ud.publicUrl);
+      setPreviewUrl(ud.publicUrl);
+      setSrcTab("url");
     }catch(e){
-      alert("Upload failed: "+e.message+"\n\nFix: Supabase → Storage → Create bucket 'streamx-media' → toggle Public ON");
+      alert("Upload failed: "+e.message);
     }
-    setUploading(false);setUploadPct(0);
+    setUploading(false); setUploadPct(0);
   }
-  function processYT(url){
+
+  async function uploadThumb(file){
+    if(!file)return;
+    if(file.size>5*1024*1024){alert("Max 5MB for thumbnail");return;}
     try{
-      if(url.includes("youtube.com/watch?v=")){const id=new URL(url).searchParams.get("v");return`https://www.youtube.com/embed/${id}?autoplay=1&rel=0`;}
-      if(url.includes("youtu.be/")){const id=url.split("youtu.be/")[1]?.split("?")[0];return`https://www.youtube.com/embed/${id}?autoplay=1&rel=0`;}
-    }catch(e){}
-    return url;
+      const ext=file.name.split(".").pop().toLowerCase();
+      const path=`thumbs/${Date.now()}.${ext}`;
+      const{error}=await supabase.storage.from("streamx-media").upload(path,file,{cacheControl:"3600",upsert:false});
+      if(error)throw error;
+      const{data:ud}=supabase.storage.from("streamx-media").getPublicUrl(path);
+      set("thumbnail",ud.publicUrl);
+    }catch(e){alert("Thumb upload failed: "+e.message);}
   }
+
   function save(){
-    const d={...form};
-    if(d.embed_url)d.embed_url=processYT(d.embed_url);
-    onSave(d);
+    if(!titleOk){alert("Please enter a title");return;}
+    if(!streamOk&&!embedOk){alert("Please add a video URL");return;}
+    onSave({...form});
   }
 
   return(
     <div style={{display:"flex",flexDirection:"column",gap:15}}>
+
+      {/* Title + Type */}
       <div style={{display:"grid",gridTemplateColumns:"2fr 1fr",gap:12}}>
         <Field label="Title" required>
-          <input className="inp" value={form.title} onChange={e=>set("title",e.target.value)} placeholder={isLiveForm?"Channel name":"Movie title"} autoFocus/>
+          <input className="inp" value={form.title} onChange={e=>set("title",e.target.value)} placeholder={isLiveForm?"Channel name e.g. IPL LIVE HD":"Movie/Series title"} autoFocus/>
         </Field>
         {!isLiveForm
           ?<Field label="Type"><select className="inp" value={form.type} onChange={e=>set("type",e.target.value)}>{TYPES.map(t=><option key={t}>{t}</option>)}</select></Field>
-          :<Field label="Category"><select className="inp" value={form.genre} onChange={e=>set("genre",e.target.value)}>{["Cricket","Football","News","Racing","Kids","Music","General"].map(g=><option key={g}>{g}</option>)}</select></Field>
+          :<Field label="Category"><select className="inp" value={form.genre} onChange={e=>set("genre",e.target.value)}>{["Cricket","Football","News","Racing","Kids","Music","General","Entertainment"].map(g=><option key={g}>{g}</option>)}</select></Field>
         }
       </div>
 
+      {/* Description */}
       <Field label="Description">
         <textarea className="inp" rows={2} value={form.description} onChange={e=>set("description",e.target.value)} placeholder="Short description..." style={{resize:"vertical"}}/>
       </Field>
 
-      <div style={{background:"rgba(229,9,20,.05)",border:"1px solid rgba(229,9,20,.18)",borderRadius:13,padding:18}}>
-        <div style={{fontSize:13,color:R,fontWeight:700,marginBottom:14}}>{isLiveForm?"🔴 Live Stream Source":"🎬 Video Source"}</div>
-        <div style={{display:"flex",gap:6,marginBottom:14,flexWrap:"wrap"}}>
-          {[{id:"url",label:"🔗 URL"},{id:"youtube",label:"▶️ YouTube"},{id:"upload",label:"📁 Upload"},{id:"drive",label:"☁️ Cloud"}].map(t=>(
-            <button key={t.id} onClick={()=>setSrcTab(t.id)} className={`src-tab${srcTab===t.id?" on":""}`}>{t.label}</button>
-          ))}
+      {/* VIDEO SOURCE — 3 tabs only: URL, Upload, Cloud */}
+      <div style={{background:"linear-gradient(135deg,rgba(229,9,20,.06),rgba(229,9,20,.02))",border:"1px solid rgba(229,9,20,.2)",borderRadius:13,padding:18}}>
+        <div style={{fontSize:13,color:R,fontWeight:700,marginBottom:14}}>
+          {isLiveForm?"🔴 Live Stream Source":"🎬 Video Source"}
+          <span style={{fontSize:10,color:"#444466",fontWeight:400,marginLeft:8}}>required</span>
         </div>
 
+        {/* 3 tabs — NO YouTube */}
+        <div style={{display:"flex",gap:8,marginBottom:16}}>
+          <button className={`src-tab${srcTab==="url"?" on":""}`} onClick={()=>setSrcTab("url")}>🔗 URL / HLS</button>
+          <button className={`src-tab${srcTab==="upload"?" on":""}`} onClick={()=>setSrcTab("upload")}>📁 Upload File</button>
+          <button className={`src-tab${srcTab==="cloud"?" on":""}`} onClick={()=>setSrcTab("cloud")}>☁️ Cloud / Drive</button>
+        </div>
+
+        {/* URL Tab */}
         {srcTab==="url"&&(
-          <Field label={isLiveForm?"HLS Live URL (.m3u8)":"Stream URL"} hint="HLS .m3u8, MP4, DASH .mpd">
-            <input className="inp" value={form.stream_url} onChange={e=>onUrlChange(e.target.value,"stream_url")} placeholder={isLiveForm?"https://example.com/live/stream.m3u8":"https://cdn.example.com/video.m3u8"}/>
-          </Field>
+          <div style={{display:"flex",flexDirection:"column",gap:10}}>
+            <Field label={isLiveForm?"HLS Live URL (.m3u8)":"Direct Video URL"} hint="Supports: HLS .m3u8, MP4, DASH .mpd — paste direct streaming link">
+              <input className="inp" value={form.stream_url} onChange={e=>onUrlChange(e.target.value,"stream_url")} placeholder={isLiveForm?"https://example.com/live/stream.m3u8":"https://example.com/movie.mp4  or  stream.m3u8"}/>
+            </Field>
+            {form.stream_url&&form.stream_url.length>10&&(
+              <div style={{fontSize:11,color:"#00c853",padding:"6px 10px",background:"rgba(0,200,83,.06)",borderRadius:6,wordBreak:"break-all"}}>
+                ✓ URL set: {form.stream_url.slice(0,80)}{form.stream_url.length>80?"...":""}
+              </div>
+            )}
+          </div>
         )}
 
-        {srcTab==="youtube"&&(
-          <Field label="YouTube URL" hint="Any YouTube video or live — auto converts">
-            <input className="inp" value={form.embed_url} onChange={e=>onUrlChange(e.target.value,"embed_url")} placeholder="https://youtube.com/watch?v=XXXXXXXXXX"/>
-          </Field>
-        )}
-
+        {/* Upload Tab */}
         {srcTab==="upload"&&(
           <div>
-            <div
-              className={`upload-zone${dragging?" on":""}`}
+            <div className={`upload-zone${dragging?" drag":""}`}
               onDragOver={e=>{e.preventDefault();setDragging(true);}}
               onDragLeave={()=>setDragging(false)}
-              onDrop={e=>{e.preventDefault();setDragging(false);const f=e.dataTransfer.files[0];if(f)uploadFile(f);}}
+              onDrop={e=>{e.preventDefault();setDragging(false);const f=e.dataTransfer.files[0];if(f)uploadVideoFile(f);}}
               onClick={()=>fileRef.current?.click()}
             >
-              <input ref={fileRef} type="file" accept="video/*,.m3u8,.mp4,.mkv,.avi,.mov" style={{display:"none"}} onChange={e=>e.target.files?.[0]&&uploadFile(e.target.files[0])}/>
+              <input ref={fileRef} type="file" accept="video/*,.mp4,.mkv,.avi,.mov,.m3u8" style={{display:"none"}} onChange={e=>e.target.files?.[0]&&uploadVideoFile(e.target.files[0])}/>
               {uploading?(
                 <div>
                   <div style={{fontSize:34,marginBottom:10}}>⬆️</div>
@@ -284,42 +291,78 @@ function ContentForm({initial,isLiveForm=false,onSave,onCancel,saving}){
               ):(
                 <div>
                   <div style={{fontSize:40,marginBottom:10,opacity:.5}}>📁</div>
-                  <div style={{fontSize:14,color:"#aaa",fontWeight:600,marginBottom:5}}>{dragging?"Drop here!":"Click or drag & drop video"}</div>
-                  <div style={{fontSize:11,color:"#444466"}}>MP4, MKV, AVI, MOV, M3U8 · Max 2GB</div>
+                  <div style={{fontSize:14,color:"#aaa",fontWeight:600,marginBottom:5}}>{dragging?"Drop file here!":"Click or drag & drop video file"}</div>
+                  <div style={{fontSize:11,color:"#444466"}}>MP4, MKV, AVI, MOV · Max 50MB (free) / 5GB (paid)</div>
                 </div>
               )}
             </div>
-            <div style={{marginTop:8,background:"rgba(245,158,11,.06)",border:"1px solid rgba(245,158,11,.2)",borderRadius:8,padding:"8px 12px",fontSize:11,color:"#f59e0b"}}>
-              ⚠️ Requires: Supabase → Storage → New bucket "streamx-media" → Public ON
+            {/* Size limit info */}
+            <div style={{marginTop:10,background:"rgba(245,158,11,.06)",border:"1px solid rgba(245,158,11,.2)",borderRadius:9,padding:12}}>
+              <div style={{fontSize:12,color:"#f59e0b",fontWeight:700,marginBottom:6}}>⚠️ Upload Size Limits</div>
+              <div style={{fontSize:11,color:"#666688",lineHeight:1.7}}>
+                • Supabase Free: <span style={{color:"#f59e0b"}}>50MB max</span> — small clips only<br/>
+                • Supabase Pro ($25/mo): <span style={{color:"#00c853"}}>5GB per file</span><br/>
+                • <span style={{color:"#7bb3ff"}}>Best option:</span> Upload to Cloudflare R2 (free 10GB) or Google Drive → paste URL in Cloud tab
+              </div>
             </div>
+            {form.stream_url&&!uploading&&(
+              <div style={{marginTop:8,fontSize:11,color:"#00c853",padding:"6px 10px",background:"rgba(0,200,83,.06)",borderRadius:6,wordBreak:"break-all"}}>
+                ✓ Uploaded: {form.stream_url.slice(0,80)}...
+              </div>
+            )}
           </div>
         )}
 
-        {srcTab==="drive"&&(
-          <Field label="Cloud / CDN link" hint="Google Drive, Dropbox, OneDrive, Cloudflare R2, Bunny CDN">
-            <input className="inp" value={form.stream_url} onChange={e=>onUrlChange(e.target.value,"stream_url")} placeholder="Paste cloud video URL here"/>
-          </Field>
+        {/* Cloud Tab */}
+        {srcTab==="cloud"&&(
+          <div style={{display:"flex",flexDirection:"column",gap:12}}>
+            <Field label="Paste Cloud Video Link" hint="Google Drive, Dropbox, OneDrive, Cloudflare R2, Bunny CDN, Terabox etc.">
+              <input className="inp" value={form.stream_url} onChange={e=>onUrlChange(e.target.value,"stream_url")} placeholder="Paste your cloud/CDN video URL here"/>
+            </Field>
+            <div style={{background:"rgba(255,255,255,.02)",borderRadius:10,padding:14,border:"1px solid #1a1a2e"}}>
+              <div style={{fontSize:12,color:"#7bb3ff",fontWeight:700,marginBottom:8}}>How to get video link:</div>
+              <div style={{fontSize:11,color:"#555577",lineHeight:1.9}}>
+                <span style={{color:"#4ade80",fontWeight:600}}>Cloudflare R2</span> (Best — Free 10GB):<br/>
+                &nbsp;&nbsp;→ cloudflare.com → R2 → Create bucket → Upload → Copy public URL<br/>
+                <span style={{color:"#60a5fa",fontWeight:600}}>Google Drive</span>:<br/>
+                &nbsp;&nbsp;→ Upload video → Right click → Share → Anyone with link → Copy link<br/>
+                &nbsp;&nbsp;→ Change: drive.google.com/file/d/<b>ID</b>/view → drive.google.com/uc?id=<b>ID</b><br/>
+                <span style={{color:"#a78bfa",fontWeight:600}}>Dropbox</span>:<br/>
+                &nbsp;&nbsp;→ Share → Copy link → Change dl=0 to dl=1 at the end<br/>
+                <span style={{color:"#fb923c",fontWeight:600}}>Bunny CDN / BunnyCDN</span> (Fast India):<br/>
+                &nbsp;&nbsp;→ bunny.net → Storage → Upload → Copy URL (fastest for India)
+              </div>
+            </div>
+            {form.stream_url&&form.stream_url.length>10&&(
+              <div style={{fontSize:11,color:"#00c853",padding:"6px 10px",background:"rgba(0,200,83,.06)",borderRadius:6}}>
+                ✓ URL set
+              </div>
+            )}
+          </div>
         )}
 
-        {previewUrl&&previewUrl.length>10&&(
-          <div>
-            <div style={{fontSize:10,color:"#444466",fontWeight:700,textTransform:"uppercase",letterSpacing:.6,marginTop:14,marginBottom:6}}>Preview</div>
+        {/* Preview when URL is pasted */}
+        {previewUrl&&previewUrl.length>10&&srcTab!=="cloud"&&(
+          <div style={{marginTop:12}}>
+            <div style={{fontSize:10,color:"#444466",fontWeight:700,textTransform:"uppercase",letterSpacing:.6,marginBottom:6}}>Preview</div>
             <SmallPreview url={previewUrl} isLive={isLiveForm||form.is_live}/>
           </div>
         )}
       </div>
 
+      {/* Thumbnail */}
       <div style={{display:"grid",gridTemplateColumns:"1fr auto",gap:10,alignItems:"end"}}>
         <Field label="Thumbnail URL">
           <input className="inp" value={form.thumbnail} onChange={e=>set("thumbnail",e.target.value)} placeholder="https://example.com/thumbnail.jpg"/>
         </Field>
         <div>
           <Btn onClick={()=>thumbRef.current?.click()} outline small color={BL}>Upload</Btn>
-          <input ref={thumbRef} type="file" accept="image/*" style={{display:"none"}} onChange={e=>e.target.files?.[0]&&uploadFile(e.target.files[0],true)}/>
+          <input ref={thumbRef} type="file" accept="image/*" style={{display:"none"}} onChange={e=>e.target.files?.[0]&&uploadThumb(e.target.files[0])}/>
         </div>
       </div>
-      {form.thumbnail&&<img src={form.thumbnail} alt="" style={{width:150,height:85,objectFit:"cover",borderRadius:9,border:"1px solid #1a1a2e"}} onError={e=>e.target.style.display="none"}/>}
+      {form.thumbnail&&<img src={form.thumbnail} alt="" style={{width:160,height:90,objectFit:"cover",borderRadius:9,border:"1px solid #1a1a2e"}} onError={e=>e.target.style.display="none"}/>}
 
+      {/* Genre + Lang + Rating */}
       {!isLiveForm&&(
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:10}}>
           <Field label="Genre"><select className="inp" value={form.genre} onChange={e=>set("genre",e.target.value)}>{GENRES.map(g=><option key={g}>{g}</option>)}</select></Field>
@@ -334,6 +377,7 @@ function ContentForm({initial,isLiveForm=false,onSave,onCancel,saving}){
         </div>
       )}
 
+      {/* Score + Year + Director */}
       {!isLiveForm&&(
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:10}}>
           <Field label="IMDb Score"><input className="inp" type="number" min="0" max="10" step="0.1" value={form.score||0} onChange={e=>set("score",+e.target.value)}/></Field>
@@ -342,8 +386,9 @@ function ContentForm({initial,isLiveForm=false,onSave,onCancel,saving}){
         </div>
       )}
 
-      <Field label="Tags (press Enter)" hint="e.g. 4K, HDR, NEW, DOLBY">
-        <input className="inp" value={tagInput} onChange={e=>setTagInput(e.target.value)} onKeyDown={addTag} placeholder="Type and press Enter..."/>
+      {/* Tags */}
+      <Field label="Tags (press Enter)" hint="e.g. 4K, HDR, NEW, DOLBY, EXCLUSIVE">
+        <input className="inp" value={tagInput} onChange={e=>setTagInput(e.target.value)} onKeyDown={addTag} placeholder="Type tag and press Enter..."/>
         <div style={{display:"flex",gap:6,flexWrap:"wrap",marginTop:6}}>
           {(form.tags||[]).map(t=>(
             <span key={t} onClick={()=>set("tags",(form.tags||[]).filter(x=>x!==t))} style={{background:"rgba(229,9,20,.12)",color:R,fontSize:11,padding:"2px 8px",borderRadius:4,cursor:"pointer",border:"1px solid rgba(229,9,20,.2)"}}>{t} ×</span>
@@ -351,25 +396,39 @@ function ContentForm({initial,isLiveForm=false,onSave,onCancel,saving}){
         </div>
       </Field>
 
+      {/* Toggles */}
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,padding:"12px 0",borderTop:"1px solid #1a1a2e"}}>
-        {[["is_active","✅ Active"],["is_featured","⭐ Featured"],["is_premium","👑 Premium Only"],["is_live","🔴 Live Stream"]].map(([k,l])=>(
-          <label key={k} style={{display:"flex",alignItems:"center",gap:8,fontSize:13,cursor:"pointer",color:"#aaa"}}>
+        {[["is_active","✅ Active — show to users"],["is_featured","⭐ Featured on Home"],["is_premium","👑 Premium Only"],["is_live","🔴 Live Stream"]].map(([k,l])=>(
+          <label key={k} style={{display:"flex",alignItems:"center",gap:8,fontSize:13,cursor:"pointer",color:"#aaa",padding:"3px 0"}}>
             <input type="checkbox" checked={!!form[k]} onChange={e=>set(k,e.target.checked)} style={{accentColor:R,width:15,height:15}}/>{l}
           </label>
         ))}
       </div>
 
+      {/* Status indicator */}
+      <div style={{background:"rgba(255,255,255,.02)",borderRadius:8,padding:"10px 14px",display:"flex",alignItems:"center",gap:10,fontSize:12}}>
+        <div style={{width:8,height:8,borderRadius:"50%",background:titleOk&&(streamOk||embedOk)?"#00c853":"#f59e0b",flexShrink:0}}/>
+        <div style={{color:titleOk&&(streamOk||embedOk)?"#00c853":"#f59e0b",fontWeight:600}}>
+          {!titleOk?"Enter a title to continue":!(streamOk||embedOk)?"Add video URL or upload a file":"Ready to save ✓"}
+        </div>
+      </div>
+
+      {/* Action buttons */}
       <div style={{display:"flex",gap:10}}>
         <Btn onClick={onCancel} ghost sx={{flex:1}}>Cancel</Btn>
-        <button onClick={save} disabled={saving||!canSave} style={{flex:2,background:saving||!canSave?"#1a1a2e":R,color:"#fff",border:"none",borderRadius:9,padding:"11px",fontSize:13,fontWeight:700,cursor:saving||!canSave?"not-allowed":"pointer",fontFamily:"'Inter',sans-serif",transition:"all .2s"}}>
-          {saving?"Saving...":initial?.id?"Update":"Save"}
+        <button
+          onClick={save}
+          disabled={saving||!canSave}
+          style={{flex:2,background:saving||!canSave?"#1a1a2e":R,color:"#fff",border:"none",borderRadius:9,padding:"12px",fontSize:14,fontWeight:700,cursor:saving||!canSave?"not-allowed":"pointer",fontFamily:"'Inter',sans-serif",transition:"all .2s"}}
+        >
+          {saving?"Saving...":initial?.id?"Update Content":"Save Content"}
         </button>
       </div>
-      {!canSave&&<div style={{fontSize:11,color:"#f87171",textAlign:"center"}}>⚠️ Title and video URL required</div>}
     </div>
   );
 }
 
+/* ── Content List ── */
 function ContentList({content,isLiveList=false,onRefresh,showToast}){
   const[modal,  setModal]  =useState(null);
   const[search, setSearch] =useState("");
@@ -386,8 +445,8 @@ function ContentList({content,isLiveList=false,onRefresh,showToast}){
   async function handleSave(form){
     setSaving(true);
     try{
-      if(modal?.id){await db.updateContent(modal.id,form);showToast("Updated!");}
-      else{await db.addContent(form);showToast("Added! Now live on home page.");}
+      if(modal?.id){await db.updateContent(modal.id,form);showToast("Content updated!");}
+      else{await db.addContent(form);showToast("Added! Live on home page now.");}
       setModal(null);onRefresh();
     }catch(e){showToast("Error: "+e.message,"err");}
     setSaving(false);
@@ -398,7 +457,7 @@ function ContentList({content,isLiveList=false,onRefresh,showToast}){
       const{error}=await supabase.from("content").delete().eq("id",c.id);
       if(error)throw error;
       showToast("Deleted: "+c.title);setConfirm(null);onRefresh();
-    }catch(e){showToast("Delete failed","err");}
+    }catch(e){showToast("Delete failed: "+e.message,"err");}
   }
 
   return(
@@ -408,7 +467,7 @@ function ContentList({content,isLiveList=false,onRefresh,showToast}){
           <div style={{textAlign:"center",padding:"8px 0"}}>
             <div style={{fontSize:48,marginBottom:12}}>🗑️</div>
             <div style={{fontWeight:700,fontSize:16,marginBottom:8}}>Delete "{confirm.title}"?</div>
-            <div style={{fontSize:13,color:"#666688",marginBottom:24}}>Permanently removes from database.</div>
+            <div style={{fontSize:13,color:"#666688",marginBottom:24,lineHeight:1.5}}>Permanently removes from database. Cannot undo.</div>
             <div style={{display:"flex",gap:10,justifyContent:"center"}}>
               <Btn onClick={()=>setConfirm(null)} ghost>Cancel</Btn>
               <Btn onClick={()=>realDelete(confirm)} danger>Yes, Delete</Btn>
@@ -416,7 +475,6 @@ function ContentList({content,isLiveList=false,onRefresh,showToast}){
           </div>
         </Modal>
       )}
-
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:18}}>
         <div>
           <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:26,letterSpacing:1}}>{isLiveList?"Live Channels":"Movies & Series"}</div>
@@ -424,14 +482,12 @@ function ContentList({content,isLiveList=false,onRefresh,showToast}){
         </div>
         <Btn onClick={()=>setModal({})}>+ Add {isLiveList?"Channel":"Content"}</Btn>
       </div>
-
       <div style={{display:"flex",gap:6,marginBottom:14,flexWrap:"wrap",alignItems:"center"}}>
         {[["all","All"],["active","Active"],["featured","⭐ Featured"],["premium","👑 Premium"],["hidden","Hidden"]].map(([id,lbl])=>(
           <button key={id} onClick={()=>setFilter(id)} style={{background:filter===id?"rgba(229,9,20,.15)":"rgba(255,255,255,.04)",border:`1px solid ${filter===id?"rgba(229,9,20,.3)":"#1a1a2e"}`,color:filter===id?R:"#555577",borderRadius:20,padding:"5px 14px",fontSize:12,cursor:"pointer",fontWeight:filter===id?700:400,fontFamily:"'Inter',sans-serif"}}>{lbl}</button>
         ))}
         <input className="inp" value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search..." style={{maxWidth:200,marginLeft:"auto"}}/>
       </div>
-
       <div className="card" style={{overflow:"hidden"}}>
         {items.length===0?(
           <div style={{textAlign:"center",padding:"56px 0",color:"#333355"}}>
@@ -448,10 +504,7 @@ function ContentList({content,isLiveList=false,onRefresh,showToast}){
                   <tr key={c.id}>
                     <td>
                       <div style={{display:"flex",alignItems:"center",gap:12}}>
-                        {c.thumbnail
-                          ?<img src={c.thumbnail} alt="" style={{width:58,height:36,objectFit:"cover",borderRadius:6,flexShrink:0}} onError={e=>e.target.style.display="none"}/>
-                          :<div style={{width:58,height:36,borderRadius:6,background:"#0c0c1e",display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,flexShrink:0}}>{isLiveList?"🔴":"🎬"}</div>
-                        }
+                        {c.thumbnail?<img src={c.thumbnail} alt="" style={{width:58,height:36,objectFit:"cover",borderRadius:6,flexShrink:0}} onError={e=>e.target.style.display="none"}/>:<div style={{width:58,height:36,borderRadius:6,background:"#0c0c1e",display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,flexShrink:0}}>{isLiveList?"🔴":"🎬"}</div>}
                         <div style={{minWidth:0}}>
                           <div style={{fontWeight:600,fontSize:13,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",maxWidth:180}}>{c.title}</div>
                           <div style={{fontSize:10,color:"#333355",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",maxWidth:180}}>{c.stream_url||c.embed_url||<span style={{color:"#f87171"}}>⚠️ No URL</span>}</div>
@@ -459,14 +512,7 @@ function ContentList({content,isLiveList=false,onRefresh,showToast}){
                       </div>
                     </td>
                     <td><Chip label={c.type||"Movie"} color={BL}/></td>
-                    <td>
-                      <div style={{display:"flex",gap:4,flexWrap:"wrap"}}>
-                        <Chip label={c.is_active?"ON":"OFF"} color={c.is_active?"#00c853":"#555577"}/>
-                        {c.is_featured&&<Chip label="⭐" color="#f59e0b"/>}
-                        {c.is_premium&&<Chip label="👑" color={R}/>}
-                        {c.is_live&&<Chip label="🔴" color={R}/>}
-                      </div>
-                    </td>
+                    <td><div style={{display:"flex",gap:4,flexWrap:"wrap"}}><Chip label={c.is_active?"ON":"OFF"} color={c.is_active?"#00c853":"#555577"}/>{c.is_featured&&<Chip label="⭐" color="#f59e0b"/>}{c.is_premium&&<Chip label="👑" color={R}/>}{c.is_live&&<Chip label="🔴" color={R}/>}</div></td>
                     <td style={{color:BL,fontSize:12,fontWeight:600}}>{fN(c.views||0)}</td>
                     <td>
                       <div style={{display:"flex",gap:4}}>
@@ -483,7 +529,6 @@ function ContentList({content,isLiveList=false,onRefresh,showToast}){
           </div>
         )}
       </div>
-
       {modal!==null&&(
         <Modal title={modal?.id?(isLiveList?"Edit Channel":"Edit Content"):(isLiveList?"Add Live Channel":"Add Content")} onClose={()=>setModal(null)} wide>
           <ContentForm initial={modal} isLiveForm={isLiveList} onSave={handleSave} onCancel={()=>setModal(null)} saving={saving}/>
@@ -493,32 +538,25 @@ function ContentList({content,isLiveList=false,onRefresh,showToast}){
   );
 }
 
+/* ── Users ── */
 function UsersPage({users,onRefresh,showToast}){
   const[search,setSearch]=useState("");
   const[filter,setFilter]=useState("all");
   const[drawer,setDrawer]=useState(null);
-
   const filtered=(users||[]).filter(u=>{
     const ms=!search||u.name?.toLowerCase().includes(search.toLowerCase())||u.phone?.includes(search)||u.email?.toLowerCase().includes(search.toLowerCase());
-    const mf=filter==="all"?true:filter==="premium"?u.plan?.includes("premium")||u.plan==="premium":filter==="admin"?u.role==="admin":!u.is_active;
+    const mf=filter==="all"?true:filter==="premium"?(u.plan?.includes("premium")||u.plan==="premium"):filter==="admin"?u.role==="admin":!u.is_active;
     return ms&&mf;
   });
-
   return(
     <div style={{animation:"fadeIn .3s ease"}}>
-      <div style={{display:"flex",justifyContent:"space-between",marginBottom:18}}>
-        <div>
-          <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:26,letterSpacing:1}}>User Management</div>
-          <div style={{fontSize:12,color:"#444466",marginTop:2}}>{filtered.length} users</div>
-        </div>
-      </div>
+      <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:26,letterSpacing:1,marginBottom:14}}>User Management</div>
       <div style={{display:"flex",gap:6,marginBottom:14,flexWrap:"wrap",alignItems:"center"}}>
         {[["all","All"],["premium","👑 Premium"],["admin","⚡ Admins"],["suspended","🚫 Suspended"]].map(([id,lbl])=>(
           <button key={id} onClick={()=>setFilter(id)} style={{background:filter===id?"rgba(229,9,20,.15)":"rgba(255,255,255,.04)",border:`1px solid ${filter===id?"rgba(229,9,20,.3)":"#1a1a2e"}`,color:filter===id?R:"#555577",borderRadius:20,padding:"5px 14px",fontSize:12,cursor:"pointer",fontWeight:filter===id?700:400,fontFamily:"'Inter',sans-serif"}}>{lbl}</button>
         ))}
         <input className="inp" value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search name, phone, email..." style={{maxWidth:260,marginLeft:"auto"}}/>
       </div>
-
       <div className="card" style={{overflow:"hidden"}}>
         <div style={{overflowX:"auto"}}>
           <table className="tbl">
@@ -541,10 +579,7 @@ function UsersPage({users,onRefresh,showToast}){
                   <td>
                     <div style={{display:"flex",gap:4}}>
                       <Btn onClick={()=>setDrawer(u)} outline small>View</Btn>
-                      {u.is_active
-                        ?<Btn onClick={async()=>{await db.suspendUser(u.id);showToast("Suspended","warn");onRefresh();}} danger small>Suspend</Btn>
-                        :<Btn onClick={async()=>{await db.activateUser(u.id);showToast("Activated");onRefresh();}} outline small color="#00c853">Activate</Btn>
-                      }
+                      {u.is_active?<Btn onClick={async()=>{await db.suspendUser(u.id);showToast("Suspended","warn");onRefresh();}} danger small>Suspend</Btn>:<Btn onClick={async()=>{await db.activateUser(u.id);showToast("Activated");onRefresh();}} outline small color="#00c853">Activate</Btn>}
                     </div>
                   </td>
                 </tr>
@@ -553,7 +588,6 @@ function UsersPage({users,onRefresh,showToast}){
           </table>
         </div>
       </div>
-
       {drawer&&(
         <>
           <div style={{position:"fixed",inset:0,zIndex:900,background:"rgba(0,0,0,.6)",backdropFilter:"blur(4px)"}} onClick={()=>setDrawer(null)}/>
@@ -569,17 +603,13 @@ function UsersPage({users,onRefresh,showToast}){
               <div style={{fontWeight:700,fontSize:17}}>{drawer.name||"Unknown"}</div>
               <div style={{fontSize:12,color:"#555577",marginTop:4}}>{drawer.phone||drawer.email||"No contact"}</div>
             </div>
-            {[["Plan",(drawer.plan||"free").toUpperCase()],["Role",(drawer.role||"user").toUpperCase()],["Status",drawer.is_active?"✅ Active":"🚫 Suspended"],["Joined",new Date(drawer.created_at).toLocaleDateString("en-IN")],["ID",drawer.id?.slice(0,16)+"..."]].map(([k,v])=>(
+            {[["Plan",(drawer.plan||"free").toUpperCase()],["Role",(drawer.role||"user").toUpperCase()],["Status",drawer.is_active?"✅ Active":"🚫 Suspended"],["Joined",new Date(drawer.created_at).toLocaleDateString("en-IN")]].map(([k,v])=>(
               <div key={k} style={{display:"flex",justifyContent:"space-between",padding:"10px 0",borderBottom:"1px solid #1a1a2e22",fontSize:13}}>
-                <span style={{color:"#444466"}}>{k}</span>
-                <span style={{fontWeight:600}}>{v}</span>
+                <span style={{color:"#444466"}}>{k}</span><span style={{fontWeight:600}}>{v}</span>
               </div>
             ))}
             <div style={{display:"flex",flexDirection:"column",gap:8,marginTop:20}}>
-              {drawer.is_active
-                ?<Btn onClick={async()=>{await db.suspendUser(drawer.id);showToast("Suspended","warn");setDrawer(null);onRefresh();}} danger sx={{width:"100%"}}>🚫 Suspend User</Btn>
-                :<Btn onClick={async()=>{await db.activateUser(drawer.id);showToast("Activated");setDrawer(null);onRefresh();}} outline color="#00c853" sx={{width:"100%"}}>✅ Activate User</Btn>
-              }
+              {drawer.is_active?<Btn onClick={async()=>{await db.suspendUser(drawer.id);showToast("Suspended","warn");setDrawer(null);onRefresh();}} danger sx={{width:"100%"}}>🚫 Suspend</Btn>:<Btn onClick={async()=>{await db.activateUser(drawer.id);showToast("Activated");setDrawer(null);onRefresh();}} outline color="#00c853" sx={{width:"100%"}}>✅ Activate</Btn>}
             </div>
           </div>
         </>
@@ -588,33 +618,29 @@ function UsersPage({users,onRefresh,showToast}){
   );
 }
 
+/* ── Ads ── */
 function AdsPage({ads,onRefresh,showToast}){
   const[modal,setModal]=useState(null);
   const[form,setForm]=useState({brand:"",tagline:"",cta_text:"Learn More",type:"pre_roll",duration:15,skip_after:5,is_active:true,priority:1});
   const[saving,setSaving]=useState(false);
-
   async function save(){
     if(!form.brand){showToast("Brand required","err");return;}
     setSaving(true);
-    try{
-      if(modal?.id){await db.updateAd(modal.id,form);showToast("Updated!");}
-      else{await db.addAd(form);showToast("Ad created!");}
-      setModal(null);onRefresh();
-    }catch(e){showToast("Error: "+e.message,"err");}
+    try{if(modal?.id){await db.updateAd(modal.id,form);showToast("Updated!");}else{await db.addAd(form);showToast("Ad created!");}setModal(null);onRefresh();}
+    catch(e){showToast("Error: "+e.message,"err");}
     setSaving(false);
   }
-
   return(
     <div style={{animation:"fadeIn .3s ease"}}>
       <div style={{display:"flex",justifyContent:"space-between",marginBottom:18}}>
         <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:26,letterSpacing:1}}>Ad Manager</div>
-        <Btn onClick={()=>{setForm({brand:"",tagline:"",cta_text:"Learn More",type:"pre_roll",duration:15,skip_after:5,is_active:true,priority:1});setModal({});}}>+ New Campaign</Btn>
+        <Btn onClick={()=>{setForm({brand:"",tagline:"",cta_text:"Learn More",type:"pre_roll",duration:15,skip_after:5,is_active:true,priority:1});setModal({});}}>+ New Ad</Btn>
       </div>
       <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(140px,1fr))",gap:12,marginBottom:20}}>
-        <KPI icon="📢" label="Total Ads"  value={(ads||[]).length}                                  color="#f59e0b"/>
-        <KPI icon="✅" label="Active"     value={(ads||[]).filter(a=>a.is_active).length}             color="#00c853"/>
-        <KPI icon="🎯" label="Pre-roll"   value={(ads||[]).filter(a=>a.type==="pre_roll").length}     color={R}/>
-        <KPI icon="🎬" label="Mid-roll"   value={(ads||[]).filter(a=>a.type==="mid_roll").length}     color={BL}/>
+        <KPI icon="📢" label="Total"    value={(ads||[]).length}                               color="#f59e0b"/>
+        <KPI icon="✅" label="Active"   value={(ads||[]).filter(a=>a.is_active).length}        color="#00c853"/>
+        <KPI icon="🎯" label="Pre-roll" value={(ads||[]).filter(a=>a.type==="pre_roll").length} color={R}/>
+        <KPI icon="🎬" label="Mid-roll" value={(ads||[]).filter(a=>a.type==="mid_roll").length} color={BL}/>
       </div>
       <div className="card" style={{overflow:"hidden"}}>
         <div style={{overflowX:"auto"}}>
@@ -641,30 +667,20 @@ function AdsPage({ads,onRefresh,showToast}){
         </div>
       </div>
       {modal!==null&&(
-        <Modal title={modal?.id?"Edit Ad":"New Ad Campaign"} onClose={()=>setModal(null)}>
+        <Modal title={modal?.id?"Edit Ad":"New Ad"} onClose={()=>setModal(null)}>
           <div style={{display:"flex",flexDirection:"column",gap:12}}>
             {[["Brand *","brand"],["Tagline","tagline"],["CTA Text","cta_text"]].map(([l,k])=>(
               <Field key={k} label={l}><input className="inp" value={form[k]||""} onChange={e=>setForm(f=>({...f,[k]:e.target.value}))}/></Field>
             ))}
             <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:10}}>
-              <Field label="Type">
-                <select className="inp" value={form.type} onChange={e=>setForm(f=>({...f,type:e.target.value}))}>
-                  <option value="pre_roll">Pre-roll</option>
-                  <option value="mid_roll">Mid-roll</option>
-                  <option value="banner">Banner</option>
-                </select>
-              </Field>
+              <Field label="Type"><select className="inp" value={form.type} onChange={e=>setForm(f=>({...f,type:e.target.value}))}><option value="pre_roll">Pre-roll</option><option value="mid_roll">Mid-roll</option><option value="banner">Banner</option></select></Field>
               <Field label="Duration(s)"><input className="inp" type="number" value={form.duration||15} onChange={e=>setForm(f=>({...f,duration:+e.target.value}))}/></Field>
               <Field label="Skip After(s)"><input className="inp" type="number" value={form.skip_after||5} onChange={e=>setForm(f=>({...f,skip_after:+e.target.value}))}/></Field>
             </div>
-            <label style={{display:"flex",alignItems:"center",gap:8,fontSize:13,cursor:"pointer",color:"#aaa"}}>
-              <input type="checkbox" checked={!!form.is_active} onChange={e=>setForm(f=>({...f,is_active:e.target.checked}))} style={{accentColor:R}}/>Active
-            </label>
+            <label style={{display:"flex",alignItems:"center",gap:8,fontSize:13,cursor:"pointer",color:"#aaa"}}><input type="checkbox" checked={!!form.is_active} onChange={e=>setForm(f=>({...f,is_active:e.target.checked}))} style={{accentColor:R}}/>Active</label>
             <div style={{display:"flex",gap:10}}>
               <Btn onClick={()=>setModal(null)} ghost sx={{flex:1}}>Cancel</Btn>
-              <button onClick={save} disabled={saving} style={{flex:2,background:saving?"#1a1a2e":R,color:"#fff",border:"none",borderRadius:9,padding:"11px",fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"'Inter',sans-serif"}}>
-                {saving?"Saving...":modal?.id?"Update":"Create"}
-              </button>
+              <button onClick={save} disabled={saving} style={{flex:2,background:saving?"#1a1a2e":R,color:"#fff",border:"none",borderRadius:9,padding:"11px",fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"'Inter',sans-serif"}}>{saving?"Saving...":modal?.id?"Update":"Create"}</button>
             </div>
           </div>
         </Modal>
@@ -673,6 +689,7 @@ function AdsPage({ads,onRefresh,showToast}){
   );
 }
 
+/* ── Revenue ── */
 function RevenuePage({stats,users}){
   const premium=(users||[]).filter(u=>u.plan?.includes("premium")||u.plan==="premium");
   const basic  =(users||[]).filter(u=>u.plan?.includes("basic"));
@@ -684,17 +701,15 @@ function RevenuePage({stats,users}){
     <div style={{animation:"fadeIn .3s ease"}}>
       <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:26,letterSpacing:1,marginBottom:20}}>Revenue & Subscriptions</div>
       <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(160px,1fr))",gap:12,marginBottom:24}}>
-        <KPI icon="💰" label="Total Revenue"   value={"₹"+fN(stats.totalRevenue||0)} color="#00c853"/>
-        <KPI icon="📅" label="Est. Monthly"    value={"₹"+fN(monthly)}               color={BL}/>
-        <KPI icon="👑" label="Premium Users"   value={premium.length}                 color={R}/>
-        <KPI icon="⭐" label="Basic Users"     value={basic.length}                   color="#8b5cf6"/>
-        <KPI icon="📱" label="Mobile Users"    value={mobile.length}                  color="#3b82f6"/>
-        <KPI icon="🆓" label="Free Users"      value={free.length}                    color="#444466"/>
+        <KPI icon="💰" label="Total Revenue"  value={"₹"+fN(stats.totalRevenue||0)} color="#00c853"/>
+        <KPI icon="📅" label="Est. Monthly"   value={"₹"+fN(monthly)}               color={BL}/>
+        <KPI icon="👑" label="Premium"        value={premium.length}                 color={R}/>
+        <KPI icon="🆓" label="Free Users"     value={free.length}                    color="#444466"/>
       </div>
       <div className="card" style={{padding:22}}>
         <div style={{fontWeight:700,fontSize:15,marginBottom:16}}>Subscription Breakdown</div>
         {[
-          {label:"Premium ₹499/mo",count:premium.length,color:R,     rev:premium.length*499},
+          {label:"Premium ₹499/mo",count:premium.length,color:R,rev:premium.length*499},
           {label:"Basic ₹299/mo",  count:basic.length,  color:"#8b5cf6",rev:basic.length*299},
           {label:"Mobile ₹149/mo", count:mobile.length, color:"#3b82f6",rev:mobile.length*149},
           {label:"Free",           count:free.length,   color:"#444466",rev:0},
@@ -705,7 +720,7 @@ function RevenuePage({stats,users}){
               <span style={{fontSize:12,color:"#444466"}}>{p.count} users · ₹{fN(p.rev)}/mo</span>
             </div>
             <div style={{height:8,background:"#1a1a2e",borderRadius:4,overflow:"hidden"}}>
-              <div style={{height:"100%",width:Math.round((p.count/total)*100)+"%",background:p.color,borderRadius:4,transition:"width .6s ease",minWidth:p.count>0?8:0}}/>
+              <div style={{height:"100%",width:Math.round((p.count/total)*100)+"%",background:p.color,borderRadius:4,minWidth:p.count>0?8:0}}/>
             </div>
           </div>
         ))}
@@ -714,7 +729,8 @@ function RevenuePage({stats,users}){
   );
 }
 
-function AnalyticsPage({stats,content,users}){
+/* ── Analytics ── */
+function AnalyticsPage({stats,content}){
   const top=[...(content||[])].sort((a,b)=>(b.views||0)-(a.views||0));
   const totalV=top.reduce((s,c)=>s+(c.views||0),0);
   return(
@@ -724,9 +740,9 @@ function AnalyticsPage({stats,content,users}){
         <KPI icon="👁️" label="Total Views"  value={fN(stats.totalViews||0)}                              color="#a855f7"/>
         <KPI icon="🎬" label="Movies"        value={(content||[]).filter(c=>c.type==="Movie").length}     color={BL}/>
         <KPI icon="📺" label="Web Series"    value={(content||[]).filter(c=>c.type==="Web Series").length} color="#f59e0b"/>
-        <KPI icon="🔴" label="Live Channels" value={(content||[]).filter(c=>c.is_live||c.type==="Live").length} color={R}/>
+        <KPI icon="🔴" label="Live"          value={(content||[]).filter(c=>c.is_live||c.type==="Live").length} color={R}/>
       </div>
-      <div className="card" style={{padding:22,marginBottom:16}}>
+      <div className="card" style={{padding:22}}>
         <div style={{fontWeight:700,fontSize:15,marginBottom:18}}>Top Content Performance</div>
         {top.slice(0,10).map((c,i)=>{
           const pct=totalV>0?((c.views||0)/totalV)*100:0;
@@ -751,17 +767,18 @@ function AnalyticsPage({stats,content,users}){
   );
 }
 
+/* ── Main Admin ── */
 export default function Admin({onNavigate,user}){
-  const[verified, setVerified] =useState(false);
-  const[showFace, setShowFace] =useState(true);
-  const[page,     setPage]     =useState("dashboard");
+  const[verified, setVerified]=useState(false);
+  const[showFace, setShowFace]=useState(true);
+  const[page,     setPage]    =useState("dashboard");
   const[collapsed,setCollapsed]=useState(false);
-  const[stats,    setStats]    =useState({});
-  const[content,  setContent]  =useState([]);
-  const[users,    setUsers]    =useState([]);
-  const[ads,      setAds]      =useState([]);
-  const[loading,  setLoading]  =useState(true);
-  const[toast,    setToast]    =useState(null);
+  const[stats,    setStats]   =useState({});
+  const[content,  setContent] =useState([]);
+  const[users,    setUsers]   =useState([]);
+  const[ads,      setAds]     =useState([]);
+  const[loading,  setLoading] =useState(true);
+  const[toast,    setToast]   =useState(null);
 
   const showToast=(msg,type="ok")=>{setToast({msg,type});setTimeout(()=>setToast(null),3500);};
 
@@ -769,9 +786,7 @@ export default function Admin({onNavigate,user}){
 
   useEffect(()=>{
     if(!verified)return;
-    const ch=supabase.channel("admin-rt")
-      .on("postgres_changes",{event:"*",schema:"public",table:"content"},()=>loadData())
-      .subscribe();
+    const ch=supabase.channel("admin-rt").on("postgres_changes",{event:"*",schema:"public",table:"content"},()=>loadData()).subscribe();
     return()=>supabase.removeChannel(ch);
   },[verified]);
 
@@ -799,8 +814,8 @@ export default function Admin({onNavigate,user}){
     </div>
   );
 
-  const liveContent  =content.filter(c=>c.is_live||c.type==="Live");
-  const movieContent =content.filter(c=>!c.is_live&&c.type!=="Live");
+  const liveContent =content.filter(c=>c.is_live||c.type==="Live");
+  const movieContent=content.filter(c=>!c.is_live&&c.type!=="Live");
 
   return(
     <div style={{display:"flex",height:"100vh",background:"#060610",overflow:"hidden",fontFamily:"'Inter',sans-serif"}}>
@@ -818,43 +833,31 @@ export default function Admin({onNavigate,user}){
             <div key={p.id} className={`nav${page===p.id?" on":""}`} onClick={()=>setPage(p.id)} style={{justifyContent:collapsed?"center":"flex-start"}} title={collapsed?p.label:undefined}>
               <span style={{fontSize:15,flexShrink:0}}>{p.icon}</span>
               {!collapsed&&<span>{p.label}</span>}
-              {!collapsed&&p.id==="live"&&liveContent.length>0&&(
-                <span style={{marginLeft:"auto",background:R,color:"#fff",fontSize:9,fontWeight:800,padding:"1px 6px",borderRadius:10,animation:"pulse 1.5s infinite"}}>{liveContent.length}</span>
-              )}
+              {!collapsed&&p.id==="live"&&liveContent.length>0&&<span style={{marginLeft:"auto",background:R,color:"#fff",fontSize:9,fontWeight:800,padding:"1px 6px",borderRadius:10,animation:"pulse 1.5s infinite"}}>{liveContent.length}</span>}
             </div>
           ))}
         </div>
         <div style={{padding:"6px",borderTop:"1px solid #1a1a2e",flexShrink:0}}>
-          <div className="nav" onClick={loadData} style={{color:BL,justifyContent:collapsed?"center":"flex-start"}} title={collapsed?"Refresh":undefined}>
-            <span style={{fontSize:15}}>↻</span>{!collapsed&&<span style={{fontSize:12}}>Refresh</span>}
-          </div>
-          <div className="nav" onClick={()=>onNavigate("home")} style={{color:"#f87171",justifyContent:collapsed?"center":"flex-start"}} title={collapsed?"Home":undefined}>
-            <span style={{fontSize:15}}>🏠</span>{!collapsed&&<span style={{fontSize:12}}>Back to Home</span>}
-          </div>
+          <div className="nav" onClick={loadData} style={{color:BL,justifyContent:collapsed?"center":"flex-start"}}><span style={{fontSize:15}}>↻</span>{!collapsed&&<span style={{fontSize:12}}>Refresh</span>}</div>
+          <div className="nav" onClick={()=>onNavigate("home")} style={{color:"#f87171",justifyContent:collapsed?"center":"flex-start"}}><span style={{fontSize:15}}>🏠</span>{!collapsed&&<span style={{fontSize:12}}>Back to Home</span>}</div>
         </div>
       </div>
 
       {/* Main */}
       <div style={{flex:1,display:"flex",flexDirection:"column",minWidth:0,overflow:"hidden"}}>
         <div style={{height:50,background:"#0a0a18",borderBottom:"1px solid #1a1a2e",display:"flex",alignItems:"center",padding:"0 20px",gap:12,flexShrink:0}}>
-          <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:16,letterSpacing:1,color:"#333355"}}>
-            {PAGES.find(p=>p.id===page)?.icon} {PAGES.find(p=>p.id===page)?.label}
-          </div>
+          <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:16,letterSpacing:1,color:"#333355"}}>{PAGES.find(p=>p.id===page)?.icon} {PAGES.find(p=>p.id===page)?.label}</div>
           <div style={{flex:1}}/>
-          <div style={{display:"flex",alignItems:"center",gap:6,fontSize:11,color:"#444466"}}>
-            <div style={{width:6,height:6,borderRadius:"50%",background:"#00c853",animation:"pulse 2s infinite"}}/>
-            Secured
-          </div>
+          <div style={{display:"flex",alignItems:"center",gap:6,fontSize:11,color:"#444466"}}><div style={{width:6,height:6,borderRadius:"50%",background:"#00c853",animation:"pulse 2s infinite"}}/>Secured</div>
           <span style={{fontSize:11,color:"#444466"}}>👑 {user?.name||"Admin"}</span>
           <Btn onClick={loadData} ghost small>↻</Btn>
         </div>
-
         <div style={{flex:1,overflowY:"auto",padding:"clamp(14px,3vw,22px)"}}>
 
-          {/* DASHBOARD */}
+          {/* Dashboard */}
           {page==="dashboard"&&(
             <div style={{animation:"fadeIn .3s ease"}}>
-              <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:26,letterSpacing:1,marginBottom:20}}>Dashboard Overview</div>
+              <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:26,letterSpacing:1,marginBottom:20}}>Dashboard</div>
               <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(170px,1fr))",gap:14,marginBottom:24}}>
                 <KPI icon="👥" label="Total Users"  value={fN(stats.totalUsers)}       color={BL}/>
                 <KPI icon="👑" label="Paid Subs"    value={fN(stats.activeSubs)}       color={R}/>
