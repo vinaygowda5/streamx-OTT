@@ -194,7 +194,26 @@ export default function VideoPlayer({ content, user, onClose, onNext }) {
 
   function loadHLS(v) {
     if (!streamUrl) { setError("No stream URL. Add URL in admin panel."); return; }
+    const isM3U8 = streamUrl.includes(".m3u8");
     try {
+      // Plain MP4 / direct video files (R2, Drive, CDN links etc.) — load directly, no HLS.js needed
+      if (!isM3U8) {
+        v.src = streamUrl;
+        v.crossOrigin = "anonymous";
+        const onCanPlay = () => {
+          v.volume = volume;
+          v.play().catch(() => {});
+          setPlaying(true);
+          resetHide();
+        };
+        const onErr = () => setError("Stream unavailable. Check URL in admin.");
+        v.addEventListener("canplay", onCanPlay, { once: true });
+        v.addEventListener("loadeddata", onCanPlay, { once: true });
+        v.addEventListener("error", onErr, { once: true });
+        v.load();
+        return;
+      }
+      // Real HLS .m3u8 streams — use Hls.js
       if (Hls.isSupported()) {
         if (hlsRef.current) hlsRef.current.destroy();
         const hls = new Hls({ enableWorker: true, lowLatencyMode: true });
