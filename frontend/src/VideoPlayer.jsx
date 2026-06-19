@@ -586,50 +586,142 @@ export default function VideoPlayer({ content, user, onClose, onNext }) {
         </div>
       )}
 
-      {/* ═══ INFO SECTION ═══ */}
-      <div style={{ flex:1, overflowY:"auto", background:"#0d0d0d" }}>
-        <div style={{ padding:"clamp(12px,3vw,18px) clamp(14px,3vw,20px) 0" }}>
-          <div style={{ fontWeight:800, fontSize:"clamp(16px,4vw,20px)", marginBottom:4, color:"#fff" }}>{content?.title}</div>
-          <div style={{ fontSize:12, color:"#666", marginBottom:12 }}>{[content?.release_year, content?.language, content?.rating].filter(Boolean).join(" • ")}</div>
-          <div style={{ display:"flex", gap:0, marginBottom:16, overflowX:"auto" }}>
-            {[
-              { icon:"＋", label: inWL ? "Saved" : "Watchlist", action: toggleWL, active: inWL },
-              { icon:"⬇", label:"Download", action:()=>showToast("Downloading...") },
-              { icon:"↗", label:"Share",    action:()=>{ navigator.clipboard?.writeText(window.location.href).catch(()=>{}); showToast("Link copied!"); } },
-              ...(isSeries ? [{ icon:"≡", label:"Episodes", action:()=>setShowEp(s=>!s), active: showEp }] : []),
-              { icon:"ⓘ", label:"Info", action:()=>setShowInfo(s=>!s), active: showInfo },
-            ].map(btn => (
-              <button key={btn.label} onClick={btn.action} style={{ display:"flex", flexDirection:"column", alignItems:"center", gap:5, background:"none", border:"none", color:btn.active?"#1565c0":"#888", cursor:"pointer", padding:"8px 14px", minWidth:56 }}>
-                <span style={{ fontSize:20 }}>{btn.icon}</span>
-                <span style={{ fontSize:10, fontWeight:600 }}>{btn.label}</span>
-              </button>
-            ))}
+      {/* ═══ INFO SECTION — Hotstar style ═══ */}
+      <div style={{ flex:1, overflowY:"auto", background:"#0a0a0a", position:"relative" }}>
+
+        {/* Blurred backdrop hero */}
+        <div style={{ position:"relative", height:"clamp(140px,30vw,210px)", overflow:"hidden" }}>
+          {content?.thumbnail && (
+            <img src={content.thumbnail} alt="" style={{ position:"absolute", inset:0, width:"100%", height:"100%", objectFit:"cover", filter:"blur(18px) brightness(.5)", transform:"scale(1.15)" }} onError={e=>e.target.style.display="none"}/>
+          )}
+          <div style={{ position:"absolute", inset:0, background:"linear-gradient(to bottom, rgba(10,10,10,.2) 0%, #0a0a0a 96%)" }}/>
+          {/* Title sits on hero, gradient text shadow */}
+          <div style={{ position:"absolute", left:"clamp(14px,3vw,22px)", right:"clamp(14px,3vw,22px)", bottom:14 }}>
+            <div style={{ fontWeight:900, fontSize:"clamp(20px,5.5vw,30px)", color:"#fff", lineHeight:1.1, textShadow:"0 2px 16px rgba(0,0,0,.8)", marginBottom:8 }}>
+              {content?.title}
+            </div>
+            {/* Pill tag row */}
+            <div style={{ display:"flex", gap:7, flexWrap:"wrap", alignItems:"center" }}>
+              {content?.score > 0 && (
+                <span style={{ background:"rgba(245,158,11,.18)", border:"1px solid rgba(245,158,11,.4)", color:"#fbbf24", fontSize:11, fontWeight:700, padding:"3px 10px", borderRadius:20 }}>⭐ {content.score}</span>
+              )}
+              {content?.release_year && <span style={{ background:"rgba(255,255,255,.12)", backdropFilter:"blur(6px)", color:"#eee", fontSize:11, fontWeight:600, padding:"3px 10px", borderRadius:20 }}>{content.release_year}</span>}
+              {content?.rating && <span style={{ background:"rgba(255,255,255,.12)", backdropFilter:"blur(6px)", color:"#eee", fontSize:11, fontWeight:600, padding:"3px 10px", borderRadius:20, border:"1px solid rgba(255,255,255,.25)" }}>{content.rating}</span>}
+              {content?.language && <span style={{ background:"rgba(255,255,255,.12)", backdropFilter:"blur(6px)", color:"#eee", fontSize:11, fontWeight:600, padding:"3px 10px", borderRadius:20 }}>{content.language}</span>}
+              {content?.genre && <span style={{ background:"rgba(255,255,255,.12)", backdropFilter:"blur(6px)", color:"#eee", fontSize:11, fontWeight:600, padding:"3px 10px", borderRadius:20 }}>{content.genre}</span>}
+              {isLive && <span style={{ background:"rgba(229,9,20,.25)", border:"1px solid rgba(229,9,20,.5)", color:"#ff4d4d", fontSize:10, fontWeight:800, padding:"3px 10px", borderRadius:20, letterSpacing:1 }}>● LIVE</span>}
+            </div>
           </div>
-          {(showInfo || !isSeries) && content?.description && <div style={{ fontSize:13, color:"#888", lineHeight:1.6, marginBottom:14 }}>{content.description}</div>}
         </div>
 
-        {isSeries && showEp && (
-          <div style={{ borderTop:"1px solid #1e1e1e" }}>
-            <div style={{ display:"flex", overflowX:"auto", padding:"10px clamp(14px,3vw,20px) 0", borderBottom:"1px solid #1e1e1e" }}>
-              {Array.from({ length: content?.season_count || 3 }, (_,i) => i+1).map(s => (
-                <button key={s} onClick={() => setSelSeason(s)} style={{ background:"none", border:"none", color:selSeason===s?"#fff":"#555", fontWeight:selSeason===s?700:500, fontSize:14, padding:"6px 16px 8px", cursor:"pointer", borderBottom:`2px solid ${selSeason===s?"#fff":"transparent"}` }}>Season {s}</button>
-              ))}
-            </div>
-            {episodes.map(ep => (
-              <div key={ep.ep} className="vp-ep" onClick={() => showToast(`Playing S${selSeason}E${ep.ep}`)}>
-                <div style={{ width:"clamp(78px,20vw,108px)", height:"clamp(48px,13vw,64px)", borderRadius:8, background:"#1e1e1e", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0, position:"relative", overflow:"hidden" }}>
-                  {content?.thumbnail ? <img src={content.thumbnail} style={{ width:"100%", height:"100%", objectFit:"cover" }} alt="" onError={e=>e.target.style.display="none"}/> : <span style={{ fontSize:20, opacity:.4 }}>🎬</span>}
-                  {ep.progress > 0 && <div style={{ position:"absolute", bottom:0, left:0, right:0, height:3, background:"rgba(255,255,255,.15)" }}><div style={{ height:"100%", width:`${ep.progress}%`, background:"#1565c0" }}/></div>}
-                </div>
-                <div style={{ flex:1, minWidth:0 }}>
-                  <div style={{ fontWeight:600, fontSize:13, color:"#fff", marginBottom:3 }}>E{ep.ep} · {ep.title}</div>
-                  <div style={{ fontSize:11, color:"#666" }}>S{selSeason} E{ep.ep} · {ep.dur}</div>
-                </div>
-              </div>
+        {/* Action button row */}
+        <div style={{ padding:"16px clamp(14px,3vw,22px) 4px", display:"flex", gap:10, flexWrap:"wrap" }}>
+          <button onClick={togglePlay} style={{ background:"#fff", color:"#000", border:"none", borderRadius:9, padding:"11px 22px", fontWeight:800, fontSize:14, display:"flex", alignItems:"center", gap:8, cursor:"pointer" }}>
+            ▶ {playing ? "Playing" : "Play"}
+          </button>
+          {content?.trailer_url && (
+            <button onClick={()=>showToast("Opening trailer...")} style={{ background:"rgba(255,255,255,.1)", color:"#fff", border:"1px solid rgba(255,255,255,.25)", borderRadius:9, padding:"11px 18px", fontWeight:700, fontSize:13, display:"flex", alignItems:"center", gap:7, cursor:"pointer" }}>
+              🎬 Trailer
+            </button>
+          )}
+          <button onClick={toggleWL} style={{ background: inWL ? "rgba(21,101,192,.18)" : "rgba(255,255,255,.08)", color: inWL ? "#7fb3ff" : "#ccc", border:`1px solid ${inWL ? "rgba(21,101,192,.5)" : "rgba(255,255,255,.18)"}`, borderRadius:9, width:44, height:44, display:"flex", alignItems:"center", justifyContent:"center", fontSize:18, cursor:"pointer", flexShrink:0 }}>
+            {inWL ? "✓" : "＋"}
+          </button>
+          <button onClick={()=>showToast("Downloading...")} style={{ background:"rgba(255,255,255,.08)", color:"#ccc", border:"1px solid rgba(255,255,255,.18)", borderRadius:9, width:44, height:44, display:"flex", alignItems:"center", justifyContent:"center", fontSize:17, cursor:"pointer", flexShrink:0 }}>⬇</button>
+          <button onClick={()=>{ navigator.clipboard?.writeText(window.location.href).catch(()=>{}); showToast("Link copied!"); }} style={{ background:"rgba(255,255,255,.08)", color:"#ccc", border:"1px solid rgba(255,255,255,.18)", borderRadius:9, width:44, height:44, display:"flex", alignItems:"center", justifyContent:"center", fontSize:16, cursor:"pointer", flexShrink:0 }}>↗</button>
+        </div>
+
+        {/* Description */}
+        {content?.description && (
+          <div style={{ padding:"14px clamp(14px,3vw,22px) 4px", fontSize:13.5, color:"#aaa", lineHeight:1.65, maxWidth:680 }}>
+            {content.description}
+          </div>
+        )}
+
+        {/* Meta row: director / studio */}
+        {(content?.director || content?.studio) && (
+          <div style={{ padding:"10px clamp(14px,3vw,22px) 0", display:"flex", flexDirection:"column", gap:4 }}>
+            {content?.director && <div style={{ fontSize:12, color:"#666" }}><span style={{ color:"#888" }}>Director: </span><span style={{ color:"#ccc" }}>{content.director}</span></div>}
+            {content?.studio && <div style={{ fontSize:12, color:"#666" }}><span style={{ color:"#888" }}>Studio: </span><span style={{ color:"#ccc" }}>{content.studio}</span></div>}
+          </div>
+        )}
+
+        {/* Tags row (4K/HDR/etc) */}
+        {content?.tags?.length > 0 && (
+          <div style={{ padding:"12px clamp(14px,3vw,22px) 0", display:"flex", gap:6, flexWrap:"wrap" }}>
+            {content.tags.map(t => (
+              <span key={t} style={{ background:"rgba(255,255,255,.06)", border:"1px solid rgba(255,255,255,.12)", color:"#999", fontSize:10, fontWeight:700, padding:"3px 9px", borderRadius:4, letterSpacing:.5 }}>{t}</span>
             ))}
           </div>
         )}
-        <div style={{ height:80 }}/>
+
+        {/* Episodes — Hotstar wide-card style */}
+        {isSeries && (
+          <div style={{ marginTop:22, borderTop:"8px solid #050505", paddingTop:16 }}>
+            <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"0 clamp(14px,3vw,22px)", marginBottom:12 }}>
+              <div style={{ fontWeight:800, fontSize:16, color:"#fff" }}>Episodes</div>
+              <select value={selSeason} onChange={e=>setSelSeason(+e.target.value)} style={{ background:"#1a1a1a", color:"#fff", border:"1px solid #2a2a2a", borderRadius:7, padding:"6px 12px", fontSize:12, fontWeight:600 }}>
+                {Array.from({ length: content?.season_count || 3 }, (_,i) => i+1).map(s => <option key={s} value={s}>Season {s}</option>)}
+              </select>
+            </div>
+            <div style={{ display:"flex", flexDirection:"column", gap:2, padding:"0 clamp(14px,3vw,22px)" }}>
+              {episodes.map(ep => (
+                <div key={ep.ep} onClick={() => showToast(`Playing S${selSeason}E${ep.ep}`)}
+                  style={{ display:"flex", gap:13, padding:"12px 8px", borderRadius:10, cursor:"pointer", transition:"background .15s", alignItems:"center" }}
+                  onMouseEnter={e=>e.currentTarget.style.background="rgba(255,255,255,.04)"}
+                  onMouseLeave={e=>e.currentTarget.style.background="transparent"}
+                >
+                  {/* Wide thumbnail */}
+                  <div style={{ width:"clamp(110px,28vw,160px)", height:"clamp(64px,16vw,92px)", borderRadius:9, background:"#1a1a1a", flexShrink:0, position:"relative", overflow:"hidden" }}>
+                    {content?.thumbnail ? <img src={content.thumbnail} style={{ width:"100%", height:"100%", objectFit:"cover" }} alt="" onError={e=>e.target.style.display="none"}/> : <div style={{ width:"100%", height:"100%", display:"flex", alignItems:"center", justifyContent:"center", fontSize:22, opacity:.3 }}>🎬</div>}
+                    <div style={{ position:"absolute", inset:0, background:"rgba(0,0,0,.25)", display:"flex", alignItems:"center", justifyContent:"center" }}>
+                      <div style={{ width:30, height:30, borderRadius:"50%", background:"rgba(255,255,255,.92)", display:"flex", alignItems:"center", justifyContent:"center", fontSize:12, color:"#000" }}>▶</div>
+                    </div>
+                    {ep.progress > 0 && <div style={{ position:"absolute", bottom:0, left:0, right:0, height:3, background:"rgba(255,255,255,.2)" }}><div style={{ height:"100%", width:`${ep.progress}%`, background:"#e50914" }}/></div>}
+                    <div style={{ position:"absolute", bottom:4, right:5, background:"rgba(0,0,0,.7)", color:"#fff", fontSize:9, fontWeight:700, padding:"1px 5px", borderRadius:3 }}>{ep.dur}</div>
+                  </div>
+                  <div style={{ flex:1, minWidth:0 }}>
+                    <div style={{ fontWeight:700, fontSize:13.5, color:"#fff", marginBottom:3 }}>{ep.ep}. {ep.title}</div>
+                    <div style={{ fontSize:11.5, color:"#777", lineHeight:1.4 }}>{ep.progress > 0 ? `${ep.progress}% watched` : `S${selSeason} · ${ep.dur}`}</div>
+                  </div>
+                  {ep.watched && <span style={{ fontSize:10, color:"#4ade80", fontWeight:700, flexShrink:0 }}>✓</span>}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Cast row */}
+        <div style={{ marginTop:24, borderTop:"8px solid #050505", paddingTop:18 }}>
+          <div style={{ fontWeight:800, fontSize:16, color:"#fff", padding:"0 clamp(14px,3vw,22px)", marginBottom:14 }}>Cast & Crew</div>
+          <div style={{ display:"flex", gap:16, overflowX:"auto", padding:"0 clamp(14px,3vw,22px)" }}>
+            {(content?.cast?.length ? content.cast : [content?.director||"Director", "Lead Actor", "Co-star", "Supporting", "Music Dir."]).slice(0,6).map((name,i) => (
+              <div key={i} style={{ display:"flex", flexDirection:"column", alignItems:"center", gap:8, flexShrink:0, width:74 }}>
+                <div style={{ width:64, height:64, borderRadius:"50%", background:`linear-gradient(135deg,hsl(${(name?.charCodeAt(0)||i)*11},45%,28%),hsl(${(name?.charCodeAt(0)||i)*11},45%,16%))`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:22, fontWeight:700, color:"#fff", border:"2px solid #222" }}>
+                  {name?.[0]?.toUpperCase() || "?"}
+                </div>
+                <div style={{ fontSize:11, color:"#999", textAlign:"center", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", width:"100%" }}>{name}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* More Like This */}
+        <div style={{ marginTop:24, borderTop:"8px solid #050505", paddingTop:18 }}>
+          <div style={{ fontWeight:800, fontSize:16, color:"#fff", padding:"0 clamp(14px,3vw,22px)", marginBottom:14 }}>More Like This</div>
+          <div style={{ display:"flex", gap:11, overflowX:"auto", padding:"0 clamp(14px,3vw,22px)" }}>
+            {Array.from({length:6}).map((_,i) => (
+              <div key={i} onClick={()=>showToast("Loading...")} style={{ width:"clamp(92px,24vw,128px)", flexShrink:0, cursor:"pointer" }}>
+                <div style={{ width:"100%", aspectRatio:"2/3", borderRadius:9, background:`linear-gradient(160deg,#1c1c1c,#0a0a0a)`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:24, opacity:.35, marginBottom:7, overflow:"hidden", position:"relative" }}>
+                  {content?.thumbnail ? <img src={content.thumbnail} alt="" style={{ width:"100%", height:"100%", objectFit:"cover", opacity:.5 }} onError={e=>e.target.style.display="none"}/> : "🎬"}
+                </div>
+                <div style={{ fontSize:11.5, color:"#bbb", fontWeight:600, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{content?.genre || "Similar"} title {i+1}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div style={{ height:90 }}/>
       </div>
 
       {/* ═══ SETTINGS SHEET ═══ */}
