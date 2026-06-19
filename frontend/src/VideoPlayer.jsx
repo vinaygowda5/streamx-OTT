@@ -199,14 +199,18 @@ export default function VideoPlayer({ content, user, onClose, onNext }) {
       // Plain MP4 / direct video files (R2, Drive, CDN links etc.) — load directly, no HLS.js needed
       if (!isM3U8) {
         v.src = streamUrl;
-        v.crossOrigin = "anonymous";
         const onCanPlay = () => {
           v.volume = volume;
           v.play().catch(() => {});
           setPlaying(true);
           resetHide();
         };
-        const onErr = () => setError("Stream unavailable. Check URL in admin.");
+        const onErr = () => {
+          const code = v.error?.code;
+          const msg = code === 1 ? "Loading aborted" : code === 2 ? "Network error" : code === 3 ? "Decode error — file may be corrupted" : code === 4 ? "Format not supported or CORS blocked" : "Unknown playback error";
+          console.error("Video error code:", code, v.error);
+          setError(`Stream unavailable: ${msg}. Check URL in admin.`);
+        };
         v.addEventListener("canplay", onCanPlay, { once: true });
         v.addEventListener("loadeddata", onCanPlay, { once: true });
         v.addEventListener("error", onErr, { once: true });
