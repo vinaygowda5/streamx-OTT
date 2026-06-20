@@ -40,7 +40,7 @@ const gc = i => GENRE_COLOR[i?.genre] || GENRE_COLOR.default;
 const ge = i => GENRE_EMOJI[i?.genre] || GENRE_EMOJI.default;
 
 /* ── Universal Player ── */
-function UniversalPlayer({ content, user, onClose }) {
+function UniversalPlayer({ content, user, onClose, onNext }) {
   if (!content) return null;
   const url = content.embed_url || content.stream_url || "";
   const isYT = url.includes("youtube.com") || url.includes("youtu.be");
@@ -72,7 +72,7 @@ function UniversalPlayer({ content, user, onClose }) {
       </div>
     );
   }
-  return <VideoPlayer content={content} user={user} onClose={onClose} onNext={()=>{}}/>;
+  return <VideoPlayer content={content} user={user} onClose={onClose} onNext={onNext}/>;
 }
 
 /* ── Content Card ── */
@@ -267,7 +267,18 @@ export default function Home({ onNavigate, user, onUpgrade }) {
       <style>{GS}</style>
 
       {showSearch && <Search onPlay={i=>{setPlayItem(i);setShowSearch(false);}} onClose={()=>setShowSearch(false)} content={content}/>}
-      {playItem   && <UniversalPlayer content={playItem} user={user} onClose={()=>setPlayItem(null)}/>}
+      {playItem   && (
+    <UniversalPlayer
+      content={playItem}
+      user={user}
+      onClose={() => setPlayItem(null)}
+      onNext={(nextItem) => {
+        if (nextItem && nextItem.id) {
+          setPlayItem(nextItem);
+        }
+      }}
+    />
+  )}
 
       {/* ── NAVBAR ── */}
       <nav style={{position:"fixed",top:0,left:0,right:0,zIndex:200,background:scrolled?"rgba(10,10,15,.97)":"transparent",backdropFilter:scrolled?"blur(16px)":"none",borderBottom:scrolled?"1px solid rgba(255,255,255,.05)":"none",transition:"all .3s"}}>
