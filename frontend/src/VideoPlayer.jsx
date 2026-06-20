@@ -22,8 +22,8 @@ const FALLBACK_ADS = [
 ];
 
 const QUALITY = ["Auto","4K","1080p","720p","480p","360p"];
-const AUDIOS  = ["Hindi","English","Kannada","Tamil","Telugu","Bengali","Malayalam"];
-const SUBS    = ["Off","Hindi","English","Kannada","Tamil"];
+const AUDIOS  = ["Hindi","English","Kannada","Tamil","Telugu","Bengali","Malayalam"]; // fallback only if content has no language set
+const SUBS    = ["Off","English"]; // honest options — see subtitle note below
 const SPEEDS  = [0.5,0.75,1,1.25,1.5,2];
 
 const CSS = `
@@ -100,7 +100,7 @@ export default function VideoPlayer({ content, user, onClose, onNext }) {
   const [showSettings, setShowSettings] = useState(false);
   const [settingsTab,  setSettingsTab]  = useState("quality");
   const [quality,      setQuality]      = useState("Auto");
-  const [audioLang,    setAudioLang]    = useState("Hindi");
+  const [audioLang,    setAudioLang]    = useState(content?.language || "");
   const [subtitle,     setSub]          = useState("Off");
   const [speed,        setSpeed]        = useState(1);
 
@@ -115,11 +115,50 @@ export default function VideoPlayer({ content, user, onClose, onNext }) {
   const [showEp,     setShowEp]     = useState(false);
   const [showInfo,   setShowInfo]   = useState(false);
   const [selSeason,  setSelSeason]  = useState(1);
+  const [related,    setRelated]    = useState([]);  // real "More Like This"
+  const [topTen,     setTopTen]     = useState([]);  // real "Top 10" by views
+  const [subtitleUrl,setSubtitleUrl]= useState(null); // real .vtt track if admin set one
 
   const isPremium = ["plan_premium","plan_annual","premium"].includes(user?.plan);
   const isLive    = content?.is_live || content?.type === "Live";
   const isSeries  = content?.type === "Series" || content?.type === "Web Series";
   const streamUrl = content?.stream_url || content?.embed_url || "";
+
+  // ── Fetch REAL related content + top 10 + subtitle (replaces fake repeated thumbnails) ──
+  useEffect(() => {
+    if (!content?.id) return;
+
+    // More Like This — other active titles, same genre first, excluding current
+    supabase.from("content")
+      .select("id,title,thumbnail,genre,type,is_active")
+      .eq("is_active", true)
+      .neq("id", content.id)
+      .order("created_at", { ascending: false })
+      .limit(20)
+      .then(({ data }) => {
+        if (!data) { setRelated([]); return; }
+        const sameGenre = data.filter(c => c.genre === content.genre);
+        const others     = data.filter(c => c.genre !== content.genre);
+        setRelated([...sameGenre, ...others].slice(0, 10));
+      });
+
+    // Top 10 — real top viewed content (optionally filtered by same language)
+    let q = supabase.from("content").select("id,title,thumbnail,views,language").eq("is_active", true).order("views", { ascending: false }).limit(10);
+    if (content.language) q = supabase.from("content").select("id,title,thumbnail,views,language").eq("is_active", true).eq("language", content.language).order("views", { ascending: false }).limit(10);
+    q.then(({ data }) => setTopTen(data && data.length > 0 ? data : []));
+
+    // Subtitle track — only real if you uploaded a .vtt URL in admin (content.subtitle_url)
+    setSubtitleUrl(content?.subtitle_url || null);
+  }, [content?.id]);
+
+  // Actually turn subtitle track on/off in the browser when toggled
+  useEffect(() => {
+    const v = videoRef.current;
+    if (!v || !v.textTracks || v.textTracks.length === 0) return;
+    for (let i = 0; i < v.textTracks.length; i++) {
+      v.textTracks[i].mode = subtitle === "On" ? "showing" : "hidden";
+    }
+  }, [subtitle, subtitleUrl]);
 
   const fmt = s => {
     if (!s || isNaN(s)) return "0:00";
@@ -382,7 +421,17 @@ export default function VideoPlayer({ content, user, onClose, onNext }) {
         ) : (
           <video ref={videoRef} playsInline
             style={{ position:"absolute", inset:0, width:"100%", height:"100%", objectFit:"contain", display: phase==="playing"||phase==="ended" ? "block" : "none" }}
-          />
+          >
+            {subtitleUrl && (
+              <track
+                kind="subtitles"
+                src={subtitleUrl}
+                srcLang="en"
+                label={content?.language || "Subtitles"}
+                default={subtitle === "On"}
+              />
+            )}
+          </video>
         )}
 
         {/* Loading */}
@@ -654,48 +703,51 @@ export default function VideoPlayer({ content, user, onClose, onNext }) {
           </div>
         )}
 
-        {/* More Like This — simple poster row, no titles, like screenshot */}
-        <div style={{ marginTop:26 }}>
-          <div style={{ fontWeight:700, fontSize:18, color:"#fff", padding:"0 clamp(14px,3vw,20px)", marginBottom:12 }}>More Like This</div>
-          <div style={{ display:"flex", gap:8, overflowX:"auto", padding:"0 clamp(14px,3vw,20px)" }}>
-            {Array.from({ length: 6 }).map((_, i) => (
-              <div key={i} onClick={() => showToast("Loading...")} style={{ width:"clamp(108px,30vw,150px)", aspectRatio:"2/3", borderRadius:6, background:"linear-gradient(160deg,#1c1c1c,#0a0a0a)", flexShrink:0, cursor:"pointer", overflow:"hidden", position:"relative" }}>
-                {content?.thumbnail
-                  ? <img src={content.thumbnail} alt="" style={{ width:"100%", height:"100%", objectFit:"cover" }} onError={e=>e.target.style.display="none"}/>
-                  : <div style={{ width:"100%", height:"100%", display:"flex", alignItems:"center", justifyContent:"center", fontSize:22, opacity:.3 }}>🎬</div>
-                }
-              </div>
-            ))}
+        {/* More Like This — REAL different titles from database, not repeated */}
+        {related.length > 0 && (
+          <div style={{ marginTop:26 }}>
+            <div style={{ fontWeight:700, fontSize:18, color:"#fff", padding:"0 clamp(14px,3vw,20px)", marginBottom:12 }}>More Like This</div>
+            <div style={{ display:"flex", gap:8, overflowX:"auto", padding:"0 clamp(14px,3vw,20px)" }}>
+              {related.map((item) => (
+                <div key={item.id} onClick={() => onNext?.(item)} style={{ width:"clamp(108px,30vw,150px)", aspectRatio:"2/3", borderRadius:6, background:"linear-gradient(160deg,#1c1c1c,#0a0a0a)", flexShrink:0, cursor:"pointer", overflow:"hidden", position:"relative" }}>
+                  {item.thumbnail
+                    ? <img src={item.thumbnail} alt={item.title} style={{ width:"100%", height:"100%", objectFit:"cover" }} onError={e=>e.target.style.display="none"}/>
+                    : <div style={{ width:"100%", height:"100%", display:"flex", alignItems:"center", justifyContent:"center", fontSize:22, opacity:.3 }}>🎬</div>
+                  }
+                </div>
+              ))}
+            </div>
           </div>
-        </div>
+        )}
 
-        {/* Top 10 row — numbered cards with Watchlist button, like screenshot */}
-        <div style={{ marginTop:26 }}>
-          <div style={{ fontWeight:700, fontSize:18, color:"#fff", padding:"0 clamp(14px,3vw,20px)", marginBottom:14 }}>
-            Top 10 in India Today{content?.language ? ` - ${content.language}` : ""}
-          </div>
-          <div style={{ display:"flex", gap:0, overflowX:"auto", padding:"0 clamp(14px,3vw,20px) 6px" }}>
-            {Array.from({ length: 6 }).map((_, i) => (
-              <div key={i} style={{ display:"flex", alignItems:"flex-end", flexShrink:0, marginRight:4 }}>
-                {/* Big rank number behind/beside poster */}
-                <div style={{ fontFamily:"Arial Black, sans-serif", fontWeight:900, fontSize:"clamp(48px,13vw,68px)", color:"#1a1a1a", WebkitTextStroke:"1.5px #444", lineHeight:1, marginRight:-14, marginBottom:4, zIndex:1, userSelect:"none" }}>
-                  {i+1}
-                </div>
-                <div style={{ width:"clamp(118px,30vw,150px)", flexShrink:0 }}>
-                  <div onClick={() => showToast("Loading...")} style={{ width:"100%", aspectRatio:"2/3", borderRadius:6, background:"linear-gradient(160deg,#1c1c1c,#0a0a0a)", cursor:"pointer", overflow:"hidden", marginBottom:8 }}>
-                    {content?.thumbnail
-                      ? <img src={content.thumbnail} alt="" style={{ width:"100%", height:"100%", objectFit:"cover" }} onError={e=>e.target.style.display="none"}/>
-                      : <div style={{ width:"100%", height:"100%", display:"flex", alignItems:"center", justifyContent:"center", fontSize:22, opacity:.3 }}>🎬</div>
-                    }
+        {/* Top 10 — REAL top viewed titles from database */}
+        {topTen.length > 0 && (
+          <div style={{ marginTop:26 }}>
+            <div style={{ fontWeight:700, fontSize:18, color:"#fff", padding:"0 clamp(14px,3vw,20px)", marginBottom:14 }}>
+              Top 10 in India Today{content?.language ? ` - ${content.language}` : ""}
+            </div>
+            <div style={{ display:"flex", gap:0, overflowX:"auto", padding:"0 clamp(14px,3vw,20px) 6px" }}>
+              {topTen.map((item, i) => (
+                <div key={item.id} style={{ display:"flex", alignItems:"flex-end", flexShrink:0, marginRight:4 }}>
+                  <div style={{ fontFamily:"Arial Black, sans-serif", fontWeight:900, fontSize:"clamp(48px,13vw,68px)", color:"#1a1a1a", WebkitTextStroke:"1.5px #444", lineHeight:1, marginRight:-14, marginBottom:4, zIndex:1, userSelect:"none" }}>
+                    {i+1}
                   </div>
-                  <button onClick={() => showToast("Added to Watchlist")} style={{ width:"100%", background:"#1c1c20", border:"none", borderRadius:5, color:"#ccc", fontSize:11.5, fontWeight:600, padding:"7px 0", cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", gap:5 }}>
-                    ＋ Watchlist
-                  </button>
+                  <div style={{ width:"clamp(118px,30vw,150px)", flexShrink:0 }}>
+                    <div onClick={() => onNext?.(item)} style={{ width:"100%", aspectRatio:"2/3", borderRadius:6, background:"linear-gradient(160deg,#1c1c1c,#0a0a0a)", cursor:"pointer", overflow:"hidden", marginBottom:8 }}>
+                      {item.thumbnail
+                        ? <img src={item.thumbnail} alt={item.title} style={{ width:"100%", height:"100%", objectFit:"cover" }} onError={e=>e.target.style.display="none"}/>
+                        : <div style={{ width:"100%", height:"100%", display:"flex", alignItems:"center", justifyContent:"center", fontSize:22, opacity:.3 }}>🎬</div>
+                      }
+                    </div>
+                    <button onClick={() => showToast("Added to Watchlist")} style={{ width:"100%", background:"#1c1c20", border:"none", borderRadius:5, color:"#ccc", fontSize:11.5, fontWeight:600, padding:"7px 0", cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", gap:5 }}>
+                      ＋ Watchlist
+                    </button>
+                  </div>
                 </div>
-              </div>
-            ))}
+              ))}
+            </div>
           </div>
-        </div>
+        )}
 
         <div style={{ height:90 }}/>
       </div>
@@ -722,18 +774,41 @@ export default function VideoPlayer({ content, user, onClose, onNext }) {
                   <div style={{ flex:1 }}><div style={{ fontWeight:quality===q?700:400, fontSize:14, color:"#fff" }}>{q}</div>{q === "4K" && !isPremium && <div style={{ fontSize:11, color:"#f59e0b" }}>Requires Premium</div>}</div>
                 </div>
               ))}
-              {settingsTab === "audio" && AUDIOS.map(l => (
-                <div key={l} className="vp-sopt" onClick={() => { setAudioLang(l); setShowSettings(false); showToast("Audio: "+l); }}>
-                  {audioLang === l ? <span style={{ color:"#1565c0", fontSize:18 }}>✓</span> : <span style={{ width:18 }}/>}
-                  <div style={{ fontWeight:audioLang===l?700:400, fontSize:14, color:"#fff" }}>{l}</div>
-                </div>
-              ))}
-              {settingsTab === "subtitles" && SUBS.map(s => (
-                <div key={s} className="vp-sopt" onClick={() => { setSub(s); setShowSettings(false); showToast("Subtitles: "+s); }}>
-                  {subtitle === s ? <span style={{ color:"#1565c0", fontSize:18 }}>✓</span> : <span style={{ width:18 }}/>}
-                  <div style={{ fontWeight:subtitle===s?700:400, fontSize:14, color:"#fff" }}>{s}</div>
-                </div>
-              ))}
+              {settingsTab === "audio" && (
+                // REAL: only show the language YOU set in Admin for this title, not a fake unrelated list
+                content?.language ? (
+                  <div className="vp-sopt" onClick={() => { setAudioLang(content.language); setShowSettings(false); showToast("Audio: "+content.language); }}>
+                    <span style={{ color:"#1565c0", fontSize:18 }}>✓</span>
+                    <div>
+                      <div style={{ fontWeight:700, fontSize:14, color:"#fff" }}>{content.language}</div>
+                      <div style={{ fontSize:11, color:"#666", marginTop:2 }}>Original audio track</div>
+                    </div>
+                  </div>
+                ) : (
+                  <div style={{ padding:"24px 22px", fontSize:13, color:"#666", lineHeight:1.6 }}>
+                    No language set for this title in Admin. Edit this content and set a Language to show it here.
+                  </div>
+                )
+              )}
+              {settingsTab === "subtitles" && (
+                subtitleUrl ? (
+                  <>
+                    <div className="vp-sopt" onClick={() => { setSub("Off"); setShowSettings(false); }}>
+                      {subtitle === "Off" ? <span style={{ color:"#1565c0", fontSize:18 }}>✓</span> : <span style={{ width:18 }}/>}
+                      <div style={{ fontWeight:subtitle==="Off"?700:400, fontSize:14, color:"#fff" }}>Off</div>
+                    </div>
+                    <div className="vp-sopt" onClick={() => { setSub("On"); setShowSettings(false); showToast("Subtitles on"); }}>
+                      {subtitle === "On" ? <span style={{ color:"#1565c0", fontSize:18 }}>✓</span> : <span style={{ width:18 }}/>}
+                      <div style={{ fontWeight:subtitle==="On"?700:400, fontSize:14, color:"#fff" }}>{content?.language || "Subtitles"}</div>
+                    </div>
+                  </>
+                ) : (
+                  <div style={{ padding:"24px 22px", fontSize:13, color:"#666", lineHeight:1.6 }}>
+                    No subtitles uploaded for this title yet.<br/><br/>
+                    <span style={{ color:"#888" }}>Note: browsers can't auto-generate subtitles — there's no built-in speech-to-text for video playback. To add real subtitles, generate a <code style={{ color:"#999" }}>.vtt</code> file (e.g. with Whisper AI or YouTube's auto-captions export) and paste its URL into the "Subtitle URL" field in Admin for this title.</span>
+                  </div>
+                )
+              )}
               {settingsTab === "speed" && SPEEDS.map(s => (
                 <div key={s} className="vp-sopt" onClick={() => { changeSpeed(s); setShowSettings(false); }}>
                   {speed === s ? <span style={{ color:"#1565c0", fontSize:18 }}>✓</span> : <span style={{ width:18 }}/>}
