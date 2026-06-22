@@ -2,25 +2,30 @@ import { useState, useEffect, useRef } from "react";
 import { supabase, db } from "./supabase.js";
 
 /*
- ╔══════════════════════════════════════════════════════╗
- ║  StreamX Login — Exact Jio Hotstar Style             ║
- ║  ✅ Mobile OTP only — no password, no registration   ║
- ║  ✅ Auto creates account on first login              ║
- ║  ✅ Device limit based on subscription plan:         ║
- ║     Free     = 1 device                             ║
- ║     Mobile   = 1 device                             ║
- ║     Basic    = 2 devices                            ║
- ║     Premium  = 4 devices                            ║
- ║     Annual   = 4 devices                            ║
- ║  ✅ Shows "device limit reached" error               ║
- ║  ✅ Shows which devices are active                   ║
- ║  ✅ Can sign out from other devices                  ║
- ╚══════════════════════════════════════════════════════╝
+ ╔══════════════════════════════════════════════════════════╗
+ ║  StreamX Login — Real Supabase Auth + ONE test number    ║
+ ║                                                            ║
+ ║  ⚠️  TESTING_BYPASS_PHONE below = +918000010000           ║
+ ║  Only THIS number can log in with code 000000 without     ║
+ ║  a real SMS. Every other number MUST receive a real OTP.  ║
+ ║                                                            ║
+ ║  ── TO REMOVE THIS BYPASS WHEN YOU GO FULLY LIVE ──        ║
+ ║  Search this file for "TESTING_BYPASS_PHONE" — there are  ║
+ ║  3 spots marked with that name. Delete those 3 blocks      ║
+ ║  (each one is commented and easy to find), OR just ask     ║
+ ║  me "remove the test bypass" and I'll give you the clean   ║
+ ║  final file with zero bypass code in two seconds.          ║
+ ╚══════════════════════════════════════════════════════════╝
 */
 
 const ADMIN_PHONES = ["+918660570052", "+919000000000", "+919000000001"];
 
-// Device limits per plan
+// ── TESTING_BYPASS_PHONE (1 of 3) ──
+// This is the ONLY number allowed to skip real SMS verification.
+// Change this to your own number, or remove this whole bypass later.
+const TESTING_BYPASS_PHONE = "+918000010000";
+const TESTING_BYPASS_CODE  = "000000";
+
 const PLAN_DEVICES = {
   free:         1,
   plan_mobile:  1,
@@ -30,7 +35,6 @@ const PLAN_DEVICES = {
   premium:      4,
 };
 
-// Get device fingerprint
 function getDeviceId() {
   let id = localStorage.getItem("streamx_device_id");
   if (!id) {
@@ -39,7 +43,6 @@ function getDeviceId() {
   }
   return id;
 }
-
 function getDeviceName() {
   const ua = navigator.userAgent;
   if (/iPhone/i.test(ua))       return "iPhone";
@@ -51,7 +54,6 @@ function getDeviceName() {
   if (/Linux/i.test(ua))        return "Linux PC";
   return "Unknown Device";
 }
-
 function getDeviceOS() {
   const ua = navigator.userAgent;
   if (/iPhone|iPad|iPod/i.test(ua)) return "iOS";
@@ -63,7 +65,7 @@ function getDeviceOS() {
 }
 
 export default function Login({ onLogin }) {
-  const [step,         setStep]         = useState("phone"); // phone | otp | device_limit
+  const [step,         setStep]         = useState("phone");
   const [phone,        setPhone]        = useState("");
   const [otp,          setOtp]          = useState(["","","","","",""]);
   const [error,        setError]        = useState("");
@@ -85,9 +87,22 @@ export default function Login({ onLogin }) {
   const canSend   = phone.replace(/\D/g,"").length===10 && !loading;
   const canVerify = otp.join("").length===6 && !loading;
 
+  // ── TESTING_BYPASS_PHONE (2 of 3) ──
+  const isBypassNumber = fullPhone === TESTING_BYPASS_PHONE;
+
   async function sendOTP(){
     setError(""); if(!canSend) return;
     setLoading(true);
+
+    // Bypass number skips real SMS entirely
+    if (isBypassNumber) {
+      setLoading(false);
+      setStep("otp"); setTimer(60);
+      setOtp(["","","","","",""]);
+      setTimeout(()=>r0.current?.focus(),150);
+      return;
+    }
+
     const { error } = await supabase.auth.signInWithOtp({ phone: fullPhone });
     setLoading(false);
     if(error && !error.message?.includes("already")){
@@ -103,36 +118,53 @@ export default function Login({ onLogin }) {
     if(c.length < 6) return;
     setError(""); setLoading(true);
 
-    // Verify OTP with Supabase
-    const { data, error } = await supabase.auth.verifyOtp({
-      phone: fullPhone, token: c, type: "sms"
-    });
+    let authUserId;
 
-    // Allow test OTP 123456 in dev
-    const isTest = c === "123456";
-    if(error && !isTest){
-      setError("Wrong OTP. Please try again.");
-      setLoading(false);
-      setOtp(["","","","","",""]);
-      setTimeout(()=>r0.current?.focus(),100);
-      return;
+    // ── TESTING_BYPASS_PHONE (3 of 3) ──
+    if (isBypassNumber) {
+      if (c !== TESTING_BYPASS_CODE) {
+        setError(`Wrong test code. Use ${TESTING_BYPASS_CODE} for this test number.`);
+        setLoading(false);
+        setOtp(["","","","","",""]);
+        setTimeout(()=>r0.current?.focus(),100);
+        return;
+      }
+      // Sign in anonymously to still get a REAL Supabase Auth session
+      // (so RLS / auth.uid() still works correctly even for the test number)
+      const { data, error } = await supabase.auth.signInAnonymously();
+      if (error || !data?.user) {
+        setError("Test login failed. Try again.");
+        setLoading(false);
+        return;
+      }
+      authUserId = data.user.id;
+    } else {
+      // Every other number — REAL OTP required, no bypass possible
+      const { data, error } = await supabase.auth.verifyOtp({
+        phone: fullPhone, token: c, type: "sms"
+      });
+      if (error || !data?.user) {
+        setError("Wrong OTP. Please try again.");
+        setLoading(false);
+        setOtp(["","","","","",""]);
+        setTimeout(()=>r0.current?.focus(),100);
+        return;
+      }
+      authUserId = data.user.id;
     }
 
-    // OTP verified — get or create user
     try {
       const isAdmin = ADMIN_PHONES.includes(fullPhone);
-      let user = await db.getUserByPhone(fullPhone).catch(()=>null);
+      let user = await db.getUserById(authUserId).catch(()=>null);
 
       if(!user){
-        // Auto create account — no registration needed
-        user = await db.createUser({
-          name: "User " + phone.slice(-4), // default name
+        user = await db.createUserWithId(authUserId, {
+          name: "User " + phone.slice(-4),
           phone: fullPhone,
           role: isAdmin ? "admin" : "user",
           plan: isAdmin ? "premium" : "free",
           is_active: true,
         });
-        // Send welcome notification
         await supabase.from("notifications").insert({
           user_id: user.id, type:"welcome",
           title:"Welcome to StreamX! 🎉",
@@ -142,10 +174,11 @@ export default function Login({ onLogin }) {
 
       if(!user.is_active){
         setError("Your account has been suspended. Contact support.");
-        setLoading(false); return;
+        setLoading(false);
+        await supabase.auth.signOut().catch(()=>{});
+        return;
       }
 
-      // Check device limit
       const allowed = await checkDeviceLimit(user);
       if(!allowed){
         setPendingUser(user);
@@ -153,18 +186,12 @@ export default function Login({ onLogin }) {
         setLoading(false); return;
       }
 
-      // Register this device
       await registerDevice(user);
       onLogin(user);
 
     } catch(e){
-      // Fallback login
-      const fallback = {
-        id: "tmp_"+Date.now(), name:"User "+phone.slice(-4),
-        phone: fullPhone, role: ADMIN_PHONES.includes(fullPhone)?"admin":"user",
-        plan:"free", is_active:true,
-      };
-      onLogin(fallback);
+      setError("Login failed. Please try again.");
+      console.error("Login error:", e);
     }
     setLoading(false);
   }
@@ -180,19 +207,14 @@ export default function Login({ onLogin }) {
         .eq("is_active", true);
 
       if(!sessions || sessions.length === 0) return true;
-
-      // Check if this device is already registered
       const thisDevice = sessions.find(s => s.device_id === deviceId);
-      if(thisDevice) return true; // Already logged in on this device
-
-      // Check if limit reached
+      if(thisDevice) return true;
       if(sessions.length < limit) return true;
 
-      // Limit reached — show active devices
       setActiveDevices(sessions);
       return false;
     } catch(e){
-      return true; // Allow if table doesn't exist
+      return true;
     }
   }
 
@@ -215,7 +237,6 @@ export default function Login({ onLogin }) {
       await supabase.from("user_sessions").update({ is_active:false }).eq("id", sessionId);
       const updated = activeDevices.filter(d=>d.id!==sessionId);
       setActiveDevices(updated);
-      // Check again if we can login now
       if(pendingUser){
         const limit = PLAN_DEVICES[pendingUser.plan] || 1;
         if(updated.length < limit){
@@ -271,7 +292,6 @@ export default function Login({ onLogin }) {
 
       <div style={{background:"rgba(13,13,22,.98)",border:"1px solid #1a1a28",borderRadius:22,padding:"36px 24px 28px",width:"100%",maxWidth:360,animation:"fadeUp .4s ease"}}>
 
-        {/* Logo */}
         <div style={{textAlign:"center",marginBottom:28}}>
           <div style={{fontWeight:900,fontSize:36,letterSpacing:2,lineHeight:1,marginBottom:5}}>
             <span style={{color:"#e50914"}}>STREAM</span><span style={{color:"#fff"}}>X</span>
@@ -279,7 +299,6 @@ export default function Login({ onLogin }) {
           <div style={{fontSize:12,color:"#2a2a3a",fontWeight:500}}>India's Premium OTT Platform</div>
         </div>
 
-        {/* ══ STEP 1: PHONE ══ */}
         {step==="phone" && (
           <div style={{animation:"fadeUp .3s ease"}}>
             <div style={{fontSize:13,fontWeight:600,color:"#aaa",marginBottom:16,textAlign:"center",lineHeight:1.6}}>
@@ -309,20 +328,20 @@ export default function Login({ onLogin }) {
           </div>
         )}
 
-        {/* ══ STEP 2: OTP ══ */}
         {step==="otp" && (
           <div style={{animation:"fadeUp .3s ease"}}>
             <div style={{textAlign:"center",marginBottom:24}}>
               <div style={{width:58,height:58,borderRadius:"50%",background:"rgba(229,9,20,.1)",border:"2px solid rgba(229,9,20,.2)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:24,margin:"0 auto 12px"}}>📱</div>
               <div style={{fontSize:13,color:"#555",marginBottom:3}}>OTP sent to</div>
               <div style={{fontSize:18,fontWeight:800,color:"#fff",marginBottom:4}}>+91 {phone}</div>
-              <div style={{fontSize:12,color:"#444",marginBottom:6}}>6-digit OTP sent via SMS</div>
+              <div style={{fontSize:12,color:"#444",marginBottom:6}}>
+                {isBypassNumber ? "Test number — use the test code below" : "6-digit OTP sent via SMS"}
+              </div>
               <button onClick={()=>{setStep("phone");setError("");setOtp(["","","","","",""]);}}
                 style={{background:"none",border:"none",color:"#e50914",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"Inter,sans-serif"}}>
                 ← Change number
               </button>
             </div>
-            {/* OTP boxes */}
             <div style={{display:"flex",gap:8,justifyContent:"center",marginBottom:20}}>
               {otp.map((v,i)=>(
                 <input key={i} ref={refs[i]} value={v}
@@ -346,11 +365,14 @@ export default function Login({ onLogin }) {
                   </button>
               }
             </div>
-            <div style={{textAlign:"center",marginTop:6,fontSize:10,color:"#1a1a28"}}>Test OTP: 123456</div>
+            {isBypassNumber && (
+              <div style={{textAlign:"center",marginTop:10,fontSize:11,color:"#f59e0b",background:"rgba(245,158,11,.08)",border:"1px solid rgba(245,158,11,.2)",borderRadius:8,padding:"7px 10px"}}>
+                ⚠️ Test mode — code is {TESTING_BYPASS_CODE}
+              </div>
+            )}
           </div>
         )}
 
-        {/* ══ STEP 3: DEVICE LIMIT ══ */}
         {step==="device_limit" && pendingUser && (
           <div style={{animation:"fadeUp .3s ease"}}>
             <div style={{textAlign:"center",marginBottom:20}}>
@@ -361,8 +383,6 @@ export default function Login({ onLogin }) {
               </div>
               <div style={{fontSize:12,color:"#555"}}>Sign out from another device to continue.</div>
             </div>
-
-            {/* Active devices list */}
             <div style={{marginBottom:16}}>
               <div style={{fontSize:11,color:"#444",fontWeight:700,textTransform:"uppercase",letterSpacing:1,marginBottom:8}}>Active Devices</div>
               {activeDevices.map(dev=>(
@@ -383,18 +403,13 @@ export default function Login({ onLogin }) {
                 </div>
               ))}
             </div>
-
             <button onClick={signOutAllDevices}
               style={{width:"100%",background:"rgba(229,9,20,.12)",border:"1px solid rgba(229,9,20,.3)",color:"#e50914",borderRadius:10,padding:"11px",fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"Inter,sans-serif",marginBottom:10}}>
               Sign Out All Devices & Continue
             </button>
-
-            {/* Upgrade */}
             <div style={{background:"linear-gradient(120deg,rgba(229,9,20,.08),rgba(245,158,11,.06))",border:"1px solid rgba(229,9,20,.15)",borderRadius:10,padding:"12px 14px",marginBottom:10}}>
               <div style={{fontSize:12,fontWeight:700,color:"#e50914",marginBottom:4}}>👑 Upgrade for More Devices</div>
-              <div style={{fontSize:11,color:"#666",marginBottom:8}}>
-                Basic = 2 devices · Premium = 4 devices
-              </div>
+              <div style={{fontSize:11,color:"#666",marginBottom:8}}>Basic = 2 devices · Premium = 4 devices</div>
               <div style={{display:"flex",gap:6}}>
                 <div style={{flex:1,background:"rgba(255,255,255,.04)",borderRadius:7,padding:"7px 10px",textAlign:"center"}}>
                   <div style={{fontSize:12,fontWeight:700,color:"#fff"}}>Basic</div>
@@ -408,7 +423,6 @@ export default function Login({ onLogin }) {
                 </div>
               </div>
             </div>
-
             <button onClick={()=>{setStep("phone");setError("");setOtp(["","","","","",""]);setPendingUser(null);}}
               style={{width:"100%",background:"rgba(255,255,255,.04)",border:"1px solid #1e1e2e",color:"#555",borderRadius:10,padding:"10px",fontSize:12,cursor:"pointer",fontFamily:"Inter,sans-serif"}}>
               ← Back
