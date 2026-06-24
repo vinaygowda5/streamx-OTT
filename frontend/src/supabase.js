@@ -16,6 +16,11 @@ export const db = {
     const { data } = await supabase.from("users").select("*").eq("id", id).single();
     return data;
   },
+  async createUserWithId(id, d) {
+    const { data, error } = await supabase.from("users").insert({ id, ...d }).select().single();
+    if (error) throw error;
+    return data;
+  },
   async createUser(d) {
     const { data, error } = await supabase.from("users").insert(d).select().single();
     if (error) throw error;
