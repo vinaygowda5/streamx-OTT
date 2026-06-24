@@ -129,15 +129,9 @@ export default function Login({ onLogin }) {
         setTimeout(()=>r0.current?.focus(),100);
         return;
       }
-      // Sign in anonymously to still get a REAL Supabase Auth session
-      // (so RLS / auth.uid() still works correctly even for the test number)
-      const { data, error } = await supabase.auth.signInAnonymously();
-      if (error || !data?.user) {
-        setError("Test login failed. Try again.");
-        setLoading(false);
-        return;
-      }
-      authUserId = data.user.id;
+      // For test number: use a fixed deterministic ID so this
+      // test account is always the same across sessions
+      authUserId = "test-user-8000010000-fixed-id";
     } else {
       // Every other number — REAL OTP required, no bypass possible
       const { data, error } = await supabase.auth.verifyOtp({
