@@ -102,7 +102,7 @@ export default function App() {
       {page !== "admin" && (
         <div style={{ position: "fixed", bottom: 0, left: 0, right: 0, zIndex: 100, background: "rgba(7,7,12,.97)", backdropFilter: "blur(16px)", borderTop: "1px solid #1a1a26", display: "flex", padding: "8px 0 calc(8px + env(safe-area-inset-bottom))" }}>
           {[
-            { id: "home",    icon: "🏠", label: "Home"    },
+            { id: "home",    icon: "", label: "Home"    },
             { id: "search",  icon: "🔍", label: "Search"  },
             { id: "profile", icon: "👤", label: "Profile" },
             ...(user?.role === "admin" ? [{ id: "admin", icon: "⚙️", label: "Admin" }] : []),
