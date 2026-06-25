@@ -144,9 +144,6 @@ export default function Login({ onLogin }) {
         {/* PHONE */}
         {step==="phone"&&(
           <div style={{animation:"fadeUp .25s ease"}}>
-            <div style={{fontSize:13,color:"#666",textAlign:"center",marginBottom:18,lineHeight:1.6}}>
-              Enter mobile number to continue<br/><span style={{fontSize:11,color:"#333"}}>No registration needed</span>
-            </div>
             <div style={{fontSize:10,color:"#333",fontWeight:700,letterSpacing:1.5,textTransform:"uppercase",marginBottom:8}}>Mobile Number</div>
             <div style={{display:"flex",gap:8,marginBottom:18}}>
               <div style={{...S.inp,width:76,display:"flex",alignItems:"center",justifyContent:"center",gap:6,flexShrink:0}}>
@@ -156,7 +153,7 @@ export default function Login({ onLogin }) {
             </div>
             {error&&<div style={S.err}>❌ {error}</div>}
             <button style={S.btn(ok1)} onClick={send} disabled={!ok1}>{loading?"Sending OTP...":"Get OTP →"}</button>
-            <div style={{textAlign:"center",marginTop:16,fontSize:11,color:"#1a1a28",lineHeight:1.8}}>By continuing, you agree to StreamX<br/>Terms of Use and Privacy Policy</div>
+            <div style={{textAlign:"center",marginTop:16,fontSize:11,color:"#1a1a28",lineHeight:1.8}}>By continuing, you agree to Namma Cinema<br/>Terms of Use and Privacy Policy</div>
           </div>
         )}
 
