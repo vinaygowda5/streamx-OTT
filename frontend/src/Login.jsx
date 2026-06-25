@@ -129,9 +129,9 @@ export default function Login({ onLogin }) {
         setTimeout(()=>r0.current?.focus(),100);
         return;
       }
-      // For test number: use a fixed deterministic ID so this
+      // For test number: use a fixed valid UUID so this
       // test account is always the same across sessions
-      authUserId = "test-user-8000010000-fixed-id";
+      authUserId = "00000000-0000-0000-0000-800001000000";
     } else {
       // Every other number — REAL OTP required, no bypass possible
       const { data, error } = await supabase.auth.verifyOtp({
