@@ -102,10 +102,10 @@ export default function App() {
       {page !== "admin" && (
         <div style={{ position: "fixed", bottom: 0, left: 0, right: 0, zIndex: 100, background: "rgba(7,7,12,.97)", backdropFilter: "blur(16px)", borderTop: "1px solid #1a1a26", display: "flex", padding: "8px 0 calc(8px + env(safe-area-inset-bottom))" }}>
           {[
-            { id: "home",    icon: <img src="/icons/home.svg" width="24" height="24" />, label: "Home"    },
-            { id: "search",  icon: <img src="/icons/search.svg" width="24" height="24" />, label: "Search"  },
-            { id: "profile", icon: <img src="/icons/profile.svg" width="24" height="24" />, label: "Profile" },
-            ...(user?.role === "admin" ? [{ id: "admin", icon: <img src="/icons/settings.svg" width="24" height="24" />, label: "Admin" }] : []),
+            { id: "home",    icon: "🏠", label: "Home"    },
+            { id: "search",  icon: "🔍", label: "Search"  },
+            { id: "profile", icon: "👤", label: "Profile" },
+            ...(user?.role === "admin" ? [{ id: "admin", icon: "⚙️", label: "Admin" }] : []),
           ].map(tab => (
             <button key={tab.id} onClick={() => handleNavigate(tab.id)} style={{ flex: 1, background: "none", border: "none", display: "flex", flexDirection: "column", alignItems: "center", gap: 3, cursor: "pointer", padding: "4px 0" }}>
               <span style={{ fontSize: 20 }}>{tab.icon}</span>
