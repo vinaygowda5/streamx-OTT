@@ -3,7 +3,7 @@ import Hls from "hls.js";
 import { supabase, db } from "./supabase.js";
 
 /* ═══════════════════════════════════════════════════════
-   StreamX VideoPlayer — Exact Jio Hotstar Style
+   Namma Cinema VideoPlayer — Exact Jio Hotstar Style
    ✅ Works on Phone, Tablet, Laptop, TV/System
    ✅ Auto-hide controls, tap to show
    ✅ Double-tap left/right to seek (mobile)
@@ -476,6 +476,13 @@ export default function VideoPlayer({ content, user, onClose, onNext }) {
           <div style={{ position:"absolute", top:"42%", left:"50%", transform:"translate(-50%,-50%)", background:"rgba(0,0,0,.75)", color:"#fff", padding:"8px 18px", borderRadius:6, fontSize:13, fontWeight:600, pointerEvents:"none", animation:"vp-fadeIn .18s ease", whiteSpace:"nowrap", zIndex:25 }}>
             {toast}
           </div>
+        )}
+
+        {/* Skip Intro */}
+        {phase === "playing" && showCtrl && progress > 30 && progress < 300 && (
+          <button onClick={(e) => { e.stopPropagation(); skipSec(90); showToast("Intro skipped"); }} style={{ position:"absolute", right:"clamp(12px,3vw,20px)", top:"clamp(52px,10vw,68px)", background:"rgba(0,0,0,.85)", backdropFilter:"blur(8px)", color:"#fff", border:"1px solid rgba(255,255,255,.25)", borderRadius:8, padding:"9px 18px", fontSize:13, fontWeight:600, cursor:"pointer", zIndex:20, animation:"vp-fadeIn .3s ease" }}>
+            Skip Intro
+          </button>
         )}
 
         {/* Next Episode */}

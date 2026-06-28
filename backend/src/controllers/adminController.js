@@ -1,0 +1,82 @@
+const sb = require("../models/db");
+const { ok, err } = require("../utils/response");
+
+async function getStats(req, res) {
+  const [u, c, s, t, a] = await Promise.all([
+    sb.from("users").select("id", { count: "exact" }),
+    sb.from("content").select("id,views", { count: "exact" }).eq("is_active", true),
+    sb.from("subscriptions").select("id", { count: "exact" }).eq("status", "active"),
+    sb.from("transactions").select("amount").eq("status", "success"),
+    sb.from("ads").select("id,is_active"),
+  ]);
+  return ok(res, {
+    totalUsers:   u.count || 0,
+    totalContent: c.count || 0,
+    activeSubs:   s.count || 0,
+    totalRevenue: (t.data || []).reduce((sum,x) => sum + (x.amount || 0), 0),
+    totalViews:   (c.data || []).reduce((sum,x) => sum + (x.views || 0), 0),
+    activeAds:    (a.data || []).filter(x => x.is_active).length,
+  });
+}
+
+async function getAllUsers(req, res) {
+  const { data } = await sb.from("users").select("*").order("created_at", { ascending: false });
+  return ok(res, data || []);
+}
+
+async function suspendUser(req, res) {
+  await sb.from("users").update({ is_active: false }).eq("id", req.params.id);
+  return ok(res, null, "User suspended");
+}
+
+async function activateUser(req, res) {
+  await sb.from("users").update({ is_active: true }).eq("id", req.params.id);
+  return ok(res, null, "User activated");
+}
+
+async function getAllContent(req, res) {
+  const { data } = await sb.from("content").select("*").order("created_at", { ascending: false });
+  return ok(res, data || []);
+}
+
+async function addContent(req, res) {
+  const { data, error } = await sb.from("content").insert(req.body).select().single();
+  if (error) return err(res, error.message);
+  return ok(res, data, "Content added");
+}
+
+async function updateContent(req, res) {
+  const { data, error } = await sb.from("content").update(req.body).eq("id", req.params.id).select().single();
+  if (error) return err(res, error.message);
+  return ok(res, data, "Content updated");
+}
+
+async function deleteContent(req, res) {
+  const { error } = await sb.from("content").delete().eq("id", req.params.id);
+  if (error) return err(res, error.message);
+  return ok(res, null, "Content deleted");
+}
+
+async function getAllAds(req, res) {
+  const { data } = await sb.from("ads").select("*").order("created_at", { ascending: false });
+  return ok(res, data || []);
+}
+
+async function addAd(req, res) {
+  const { data, error } = await sb.from("ads").insert(req.body).select().single();
+  if (error) return err(res, error.message);
+  return ok(res, data);
+}
+
+async function updateAd(req, res) {
+  const { data, error } = await sb.from("ads").update(req.body).eq("id", req.params.id).select().single();
+  if (error) return err(res, error.message);
+  return ok(res, data);
+}
+
+async function deleteAd(req, res) {
+  await sb.from("ads").delete().eq("id", req.params.id);
+  return ok(res, null, "Ad deleted");
+}
+
+module.exports = { getStats, getAllUsers, suspendUser, activateUser, getAllContent, addContent, updateContent, deleteContent, getAllAds, addAd, updateAd, deleteAd };

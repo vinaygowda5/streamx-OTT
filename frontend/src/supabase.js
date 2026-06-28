@@ -12,6 +12,10 @@ export const db = {
     const { data } = await supabase.from("users").select("*").eq("phone", phone).single();
     return data;
   },
+  async getUserByEmail(email) {
+    const { data } = await supabase.from("users").select("*").eq("email", email).single();
+    return data;
+  },
   async getUserById(id) {
     const { data } = await supabase.from("users").select("*").eq("id", id).single();
     return data;
