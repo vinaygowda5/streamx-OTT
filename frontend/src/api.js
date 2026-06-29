@@ -1,7 +1,7 @@
 // frontend/src/api.js
 // All API calls to our backend in one place
 
-const BASE = "https://streamx-ott-production.up.railway.app/api";
+const BASE = import.meta.env.VITE_API_URL || "http://localhost:5000/api";
 
 // ── Helper ─────────────────────────────────────
 async function request(url, options = {}) {
