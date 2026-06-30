@@ -327,7 +327,7 @@ export default function Search({ onNavigate, user, onClose }) {
               </div>
             ) : results.length === 0 ? (
               <div style={{ textAlign:"center",padding:"56px 24px",animation:"fadeIn .3s ease" }}>
-                <div style={{ fontSize:52,marginBottom:14,opacity:.3 }}>🔍</div>
+                <div style={{ fontSize:52,marginBottom:14,opacity:.3 }}><img src="./icon/search.svg" width="24" height="24" /></div>
                 <div style={{ fontSize:16,fontWeight:600,color:"#e2e2f0",marginBottom:8 }}>No results for "{query}"</div>
                 <div style={{ fontSize:13,color:"#444466",lineHeight:1.6 }}>
                   Try different keywords<br/>or check spelling
