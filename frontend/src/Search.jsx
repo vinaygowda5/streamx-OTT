@@ -367,44 +367,6 @@ export default function Search({ onNavigate, user, onClose }) {
               </div>
             )}
 
-            {/* Trending */}
-            {trending.length > 0 && (
-              <div style={{ padding:"20px 0 0" }}>
-                <div style={{ padding:"0 16px",fontSize:14,fontWeight:800,marginBottom:14,color:"#e2e2f0" }}>
-                  🔥 Trending Now
-                </div>
-                {/* Top 1 — big card */}
-                {trending[0] && (
-                  <div style={{ padding:"0 16px",marginBottom:14 }}>
-                    <div
-                      onClick={()=>playContent(trending[0])}
-                      style={{ borderRadius:12,overflow:"hidden",background:"#0e0e1e",border:"1px solid #1a1a2e",cursor:"pointer",position:"relative" }}
-                    >
-                      <div style={{ paddingTop:"45%",position:"relative" }}>
-                        {trending[0].thumbnail
-                          ? <img src={trending[0].thumbnail} alt="" style={{ position:"absolute",inset:0,width:"100%",height:"100%",objectFit:"cover" }} onError={e=>e.target.style.display="none"}/>
-                          : <div style={{ position:"absolute",inset:0,display:"flex",alignItems:"center",justifyContent:"center",fontSize:48,opacity:.2 }}>🎬</div>
-                        }
-                        <div style={{ position:"absolute",inset:0,background:"linear-gradient(to top,rgba(0,0,0,.92) 0%,transparent 50%)" }}/>
-                        <div style={{ position:"absolute",top:12,left:12,background:R,color:"#fff",fontSize:10,fontWeight:800,padding:"3px 10px",borderRadius:4 }}>#1 TRENDING</div>
-                        {trending[0].is_live && <div style={{ position:"absolute",top:12,right:12,background:R,color:"#fff",fontSize:9,fontWeight:800,padding:"2px 8px",borderRadius:3,letterSpacing:1.5 }}>● LIVE</div>}
-                        <div style={{ position:"absolute",bottom:0,left:0,right:0,padding:"16px" }}>
-                          <div style={{ fontWeight:800,fontSize:18,marginBottom:6 }}>{trending[0].title}</div>
-                          <div style={{ display:"flex",gap:10,alignItems:"center" }}>
-                            <span style={{ fontSize:12,color:"#aaa" }}>{trending[0].type}</span>
-                            <span style={{ fontSize:12,color:"#aaa" }}>· {trending[0].genre}</span>
-                            {trending[0].score>0 && <span style={{ fontSize:12,color:"#f59e0b",fontWeight:700 }}>⭐ {trending[0].score}</span>}
-                          </div>
-                        </div>
-                        {/* Play button */}
-                        <div style={{ position:"absolute",inset:0,display:"flex",alignItems:"center",justifyContent:"center" }}>
-                          <div style={{ width:56,height:56,borderRadius:"50%",background:"rgba(229,9,20,.85)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:22,boxShadow:"0 4px 20px rgba(229,9,20,.4)" }}>▶</div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                )}
-
                 {/* Rest — horizontal scroll */}
                 <div style={{ overflowX:"auto",paddingLeft:16,paddingRight:16,display:"flex",gap:10 }}>
                   {trending.slice(1).map((item,i)=>(
@@ -458,8 +420,6 @@ export default function Search({ onNavigate, user, onClose }) {
             </div>
 
           </div>
-        )}
       </div>
-    </div>
   );
 }
