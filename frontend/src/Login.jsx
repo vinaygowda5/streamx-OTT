@@ -7,7 +7,7 @@ import { supabase, db } from "./supabase.js";
   Switch to backend later when Railway is ready
 */
 
-const ADMIN_EMAILS = ["admin@nammacinema.in","vinaygowda12096909@email.com","admin@streamx.in"];
+const ADMIN_EMAILS = ["admin@nammacinema.in","vinaygowda12096909@gmail.com","admin@streamx.in"];
 const TEST_EMAIL   = "test@nammacinema.dev";
 const TEST_CODE    = "000000";
 
