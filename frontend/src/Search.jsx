@@ -285,7 +285,7 @@ export default function Search({ onNavigate, user, onClose }) {
         <div style={{ display:"flex",alignItems:"center",gap:10 }}>
           <button onClick={onClose||(() => onNavigate("home"))} style={{ background:"none",border:"none",color:"#aaa",fontSize:22,cursor:"pointer",padding:"2px 6px",flexShrink:0 }}>←</button>
           <div style={{ flex:1,position:"relative" }}>
-            <span style={{ position:"absolute",left:12,top:"50%",transform:"translateY(-50%)",fontSize:16,color:"#444466",pointerEvents:"none" }}>🔍</span>
+            <span style={{ position:"absolute",left:12,top:"50%",transform:"translateY(-50%)",fontSize:16,color:"#444466",pointerEvents:"none" }}><img src="./icon/search.svg" width="24" height="24" /></span>
             <input
               ref={inputRef}
               value={query}
