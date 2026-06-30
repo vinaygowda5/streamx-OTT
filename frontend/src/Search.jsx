@@ -266,7 +266,7 @@ export default function Search({ onNavigate, user, onClose }) {
   }
 
   return (
-    <div style={{ minHeight:"100vh",background:"#07070c",fontFamily:"Inter,sans-serif",paddingBottom:80 }}>
+    <div style={{ position:"fixed", inset:0, zIndex:1000, minHeight:"100vh",background:"#07070c",fontFamily:"Inter,sans-serif",paddingBottom:80, overflowY:"auto" }}>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
         *{box-sizing:border-box;margin:0;padding:0;}
@@ -285,7 +285,7 @@ export default function Search({ onNavigate, user, onClose }) {
         <div style={{ display:"flex",alignItems:"center",gap:10 }}>
           <button onClick={onClose||(() => onNavigate("home"))} style={{ background:"none",border:"none",color:"#aaa",fontSize:22,cursor:"pointer",padding:"2px 6px",flexShrink:0 }}>←</button>
           <div style={{ flex:1,position:"relative" }}>
-            <span style={{ position:"absolute",left:12,top:"50%",transform:"translateY(-50%)",fontSize:16,color:"#444466",pointerEvents:"none" }}><img src="./icon/search.svg" width="24" height="24" /></span>
+            <span style={{ position:"absolute",left:12,top:"50%",transform:"translateY(-50%)",fontSize:16,color:"#444466",pointerEvents:"none" }}>🔍</span>
             <input
               ref={inputRef}
               value={query}
@@ -327,7 +327,7 @@ export default function Search({ onNavigate, user, onClose }) {
               </div>
             ) : results.length === 0 ? (
               <div style={{ textAlign:"center",padding:"56px 24px",animation:"fadeIn .3s ease" }}>
-                <div style={{ fontSize:52,marginBottom:14,opacity:.3 }}><img src="./icon/search.svg" width="24" height="24" /></div>
+                <div style={{ fontSize:52,marginBottom:14,opacity:.3 }}>🔍</div>
                 <div style={{ fontSize:16,fontWeight:600,color:"#e2e2f0",marginBottom:8 }}>No results for "{query}"</div>
                 <div style={{ fontSize:13,color:"#444466",lineHeight:1.6 }}>
                   Try different keywords<br/>or check spelling
