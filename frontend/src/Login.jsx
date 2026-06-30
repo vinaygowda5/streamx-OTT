@@ -153,14 +153,15 @@ export default function Login({onLogin}){
     try{
       // Check phone not used by another account
       if(fullPhone){
-        const{data:existing}=await supabase.from("users").select("*").eq("phone",fullPhone).single();
+        const phoneCheck=await supabase.from("users").select("id,email").eq("phone",fullPhone).maybeSingle();
+        const existing=phoneCheck.data;
         if(existing&&existing.id!==pendingUser.id){
           setError(`Account already exists for this number (${existing.email}). Please use that email to login.`);
           setLoading(false);return;
         }
       }
 
-      const{data:newUser,error}=await supabase.from("users").insert({
+      const insertRes=await supabase.from("users").insert({
         id:pendingUser.id,
         name:clean.split("@")[0],
         email:pendingUser.email,
@@ -169,16 +170,18 @@ export default function Login({onLogin}){
         plan:pendingUser.plan,
         is_active:true,
       }).select().single();
-      if(error)throw error;
+
+      if(insertRes.error)throw insertRes.error;
+      const newUser=insertRes.data;
 
       await supabase.from("notifications").insert({
         user_id:newUser.id,type:"welcome",
         title:"Welcome to Namma Cinema! 🎬",
         message:"ನಮ್ಮ ಸಿನಿಮಾಕ್ಕೆ ಸ್ವಾಗತ! Start watching now.",
-      }).catch(()=>{});
+      });
 
-      const ok=await checkDeviceLimit(newUser);
-      if(!ok){setPendingUser(newUser);setStep("devices");setLoading(false);return;}
+      const allowed=await checkDeviceLimit(newUser);
+      if(!allowed){setPendingUser(newUser);setStep("devices");setLoading(false);return;}
       await registerDevice(newUser);
       localStorage.setItem("streamx_user",JSON.stringify(newUser));
       onLogin(newUser);
@@ -331,7 +334,6 @@ export default function Login({onLogin}){
             </div>
             {error&&<div style={{background:"rgba(248,113,113,.08)",border:"1px solid rgba(248,113,113,.2)",borderRadius:8,padding:"9px 12px",marginBottom:10,color:"#f87171",fontSize:12}}>❌ {error}</div>}
             <button style={{...btn(true),marginBottom:8}} onClick={savePhoneAndCreate} disabled={loading}>{loading?"Creating account...":"Start Watching 🎬"}</button>
-            <button onClick={()=>{setPhone("");savePhoneAndCreate();}} style={{width:"100%",background:"none",border:"none",color:"#555",fontSize:12,cursor:"pointer",fontFamily:"Inter,sans-serif",padding:"8px 0"}}>Skip for now →</button>
           </div>
         )}
 
