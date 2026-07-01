@@ -1,366 +1,441 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
+import CustomerSupport from "./CustomerSupport.jsx";
 import { supabase, db } from "./supabase.js";
-import VideoPlayer from "./VideoPlayer.jsx";
-import Search from "./Search.jsx";
 
-const GS = `
-@import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Manrope:wght@400;500;600;700;800&display=swap');
-*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
-html{scroll-behavior:smooth;}
-body{background:#0a0a0f;color:#fff;font-family:'Manrope',sans-serif;overflow-x:hidden;}
-::-webkit-scrollbar{height:2px;width:3px;}
-::-webkit-scrollbar-thumb{background:#e50914;border-radius:2px;}
-.rs{display:flex;gap:12px;overflow-x:auto;padding-bottom:4px;scroll-behavior:smooth;}
-.rs::-webkit-scrollbar{height:0;}
-@keyframes fadeUp{from{opacity:0;transform:translateY(18px);}to{opacity:1;transform:translateY(0);}}
-@keyframes pulse{0%,100%{opacity:1;}50%{opacity:.4;}}
-@keyframes fadeIn{from{opacity:0;}to{opacity:1;}}
-.ch{transition:transform .22s,box-shadow .22s;cursor:pointer;}
-.ch:hover{transform:scale(1.06) translateY(-4px);}
-@media(max-width:480px){.ch:hover{transform:none;}}
-.pt{background:none;border:none;font-family:'Manrope',sans-serif;font-size:13px;font-weight:600;color:#555;padding:7px 14px;cursor:pointer;white-space:nowrap;border-bottom:2px solid transparent;transition:color .18s,border-color .18s;}
-.pt.on{color:#fff;font-weight:700;border-bottom-color:#e50914;}
-`;
+const RED="#e50914",BG="#07070c",S1="#0f0f16",BD="#1a1a26",MT="#555";
 
-const CATS = ["For You","Live","Movies","Series","Sports","Kids","Premium","News"];
+const LANGUAGES=[
+  {code:"hi",label:"Hindi",flag:"🇮🇳"},{code:"en",label:"English",flag:"🇬🇧"},
+  {code:"kn",label:"Kannada",flag:"🇮🇳"},{code:"ta",label:"Tamil",flag:"🇮🇳"},
+  {code:"te",label:"Telugu",flag:"🇮🇳"},{code:"bn",label:"Bengali",flag:"🇮🇳"},
+  {code:"ml",label:"Malayalam",flag:"🇮🇳"},{code:"pa",label:"Punjabi",flag:"🇮🇳"},
+  {code:"mr",label:"Marathi",flag:"🇮🇳"},{code:"gu",label:"Gujarati",flag:"🇮🇳"},
+  {code:"bh",label:"Bhojpuri",flag:"🇮🇳"},{code:"or",label:"Odia",flag:"🇮🇳"},
+];
 
-const GENRE_COLOR = {
-  Action:"#e50914",Drama:"#f59e0b","Sci-Fi":"#1d9bf0",Thriller:"#a855f7",
-  Horror:"#f87171",Romance:"#ec4899",Comedy:"#84cc16",Kids:"#84cc16",
-  Cricket:"#00c853",Racing:"#e50914",Football:"#38bdf8",News:"#f97316",
-  Sports:"#00c853",Documentary:"#38bdf8",Nature:"#22c55e",default:"#64748b",
-};
-const GENRE_EMOJI = {
-  Action:"💥",Drama:"🎭","Sci-Fi":"🌌",Thriller:"🔪",Horror:"👻",
-  Romance:"💕",Comedy:"😄",Kids:"🧸",Cricket:"🏏",Racing:"🏎️",
-  Football:"⚽",News:"📺",Sports:"🏆",Documentary:"🎥",Nature:"🌊",default:"🎬",
-};
-
-const gc = i => GENRE_COLOR[i?.genre] || GENRE_COLOR.default;
-const ge = i => GENRE_EMOJI[i?.genre] || GENRE_EMOJI.default;
-
-/* ── Universal Player ── */
-function UniversalPlayer({ content, user, onClose, onNext }) {
-  if (!content) return null;
-  const url = content.embed_url || content.stream_url || "";
-  const isYT = url.includes("youtube.com") || url.includes("youtu.be");
-
-  function toEmbed(u) {
-    try {
-      if (u.includes("youtube.com/watch?v=")) return `https://www.youtube.com/embed/${new URL(u).searchParams.get("v")}?autoplay=1&rel=0`;
-      if (u.includes("youtu.be/")) return `https://www.youtube.com/embed/${u.split("youtu.be/")[1]?.split("?")[0]}?autoplay=1&rel=0`;
-    } catch(e) {}
-    return u;
-  }
-
-  if (content.embed_url || isYT) {
-    return (
-      <div style={{position:"fixed",inset:0,zIndex:700,background:"#000",display:"flex",flexDirection:"column"}}>
-        <style>{`@keyframes pulse{0%,100%{opacity:1;}50%{opacity:.4;}}`}</style>
-        <div style={{display:"flex",alignItems:"center",gap:12,padding:"11px 18px",background:"rgba(0,0,0,.96)",borderBottom:"1px solid #1a1a26",flexShrink:0}}>
-          <button onClick={onClose} style={{background:"rgba(255,255,255,.08)",border:"1px solid rgba(255,255,255,.12)",color:"#fff",fontSize:18,cursor:"pointer",borderRadius:8,width:36,height:36,display:"flex",alignItems:"center",justifyContent:"center"}}>←</button>
-          <div style={{flex:1,minWidth:0}}>
-            <div style={{fontWeight:700,fontSize:15,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{content.title}</div>
-            <div style={{fontSize:11,color:"#555"}}>{content.type} · {content.genre}</div>
-          </div>
-          {(content.is_live||content.type==="Live") && <div style={{background:"#e50914",color:"#fff",fontSize:10,fontWeight:800,padding:"4px 14px",borderRadius:20,letterSpacing:2,animation:"pulse 1.5s infinite"}}>● LIVE</div>}
-          <button onClick={onClose} style={{background:"rgba(255,255,255,.06)",border:"1px solid rgba(255,255,255,.1)",color:"#aaa",borderRadius:8,padding:"6px 14px",fontSize:12,cursor:"pointer"}}>✕</button>
-        </div>
-        <div style={{flex:1,position:"relative"}}>
-          <iframe src={toEmbed(content.embed_url||url)} style={{position:"absolute",inset:0,width:"100%",height:"100%",border:"none"}} allow="autoplay; fullscreen; encrypted-media" allowFullScreen title={content.title}/>
-        </div>
-      </div>
-    );
-  }
-  return <VideoPlayer content={content} user={user} onClose={onClose} onNext={onNext}/>;
-}
-
-/* ── Content Card ── */
-function Card({ item, onPlay }) {
-  const [hov, setHov] = useState(false);
-  const color = gc(item), emoji = ge(item);
-  const isLive = item.is_live || item.type === "Live";
-  return (
-    <div className="ch"
-      onMouseEnter={()=>setHov(true)} onMouseLeave={()=>setHov(false)}
-      onClick={()=>onPlay(item)}
-      style={{flex:"0 0 clamp(140px,28vw,165px)",borderRadius:10,overflow:"hidden",border:`1.5px solid ${hov?color+"88":"#1c1c24"}`,background:"#0f0f16",boxShadow:hov?`0 10px 32px ${color}33`:"none"}}
-    >
-      <div style={{height:"clamp(88px,17vw,105px)",position:"relative",overflow:"hidden",background:item.thumbnail?`url(${item.thumbnail}) center/cover no-repeat`:`linear-gradient(135deg,${color}22,#0a0a0f)`,display:"flex",alignItems:"center",justifyContent:"center"}}>
-        {!item.thumbnail && <span style={{fontSize:"clamp(30px,7vw,42px)"}}>{emoji}</span>}
-        {isLive && <div style={{position:"absolute",top:6,left:6,background:"#e50914",color:"#fff",fontSize:9,fontWeight:800,padding:"2px 8px",borderRadius:3,letterSpacing:2,animation:"pulse 1.5s infinite"}}>● LIVE</div>}
-        {item.is_premium && !isLive && <div style={{position:"absolute",top:6,right:6,background:"rgba(229,9,20,.9)",color:"#fff",fontSize:9,fontWeight:700,padding:"2px 7px",borderRadius:3}}>PRO</div>}
-        {hov && <div style={{position:"absolute",inset:0,background:"rgba(0,0,0,.5)",display:"flex",alignItems:"center",justifyContent:"center"}}><div style={{width:38,height:38,borderRadius:"50%",background:color,display:"flex",alignItems:"center",justifyContent:"center",fontSize:15,fontWeight:900}}>▶</div></div>}
-      </div>
-      <div style={{padding:"8px 10px 10px"}}>
-        <div style={{fontWeight:700,fontSize:12,marginBottom:3,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{item.title}</div>
-        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-          <span style={{fontSize:10,color,fontWeight:600}}>{item.genre}</span>
-          {item.score>0 && <span style={{fontSize:10,color:"#f59e0b"}}>★ {item.score}</span>}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-/* ── Content Row ── */
-function Row({ label, items, onPlay }) {
-  const ref = useRef(null);
-  // Don't render row if no items
-  if (!items?.length) return null;
-  return (
-    <div style={{marginBottom:"clamp(24px,4vw,34px)"}}>
-      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12,padding:"0 clamp(14px,4vw,24px)"}}>
-        <div style={{fontWeight:800,fontSize:"clamp(14px,3vw,16px)"}}>{label}</div>
-        <div style={{display:"flex",gap:5}}>
-          <button onClick={()=>ref.current?.scrollBy({left:-300,behavior:"smooth"})} style={{width:24,height:24,borderRadius:"50%",background:"rgba(255,255,255,.08)",border:"none",color:"#aaa",cursor:"pointer",fontSize:13}}>‹</button>
-          <button onClick={()=>ref.current?.scrollBy({left:300,behavior:"smooth"})}  style={{width:24,height:24,borderRadius:"50%",background:"rgba(255,255,255,.08)",border:"none",color:"#aaa",cursor:"pointer",fontSize:13}}>›</button>
-        </div>
-      </div>
-      <div ref={ref} className="rs" style={{padding:`0 clamp(14px,4vw,24px) 6px`}}>
-        {items.map(i=><Card key={i.id} item={i} onPlay={onPlay}/>)}
-      </div>
-    </div>
-  );
-}
-
-/* ── Hero Banner ── */
-function Hero({ items, onPlay }) {
-  const [idx, setIdx] = useState(0);
-  const [key, setKey] = useState(0);
-  useEffect(()=>{
-    if(!items.length) return;
-    const t=setInterval(()=>{setIdx(i=>(i+1)%items.length);setKey(k=>k+1);},6000);
-    return()=>clearInterval(t);
-  },[items.length]);
-
-  if(!items.length) return <div style={{height:"55vh",background:"#0a0a0f"}}/>;
-
-  const h = items[idx], color = gc(h);
-  return (
-    <div style={{position:"relative",height:"clamp(310px,60vh,680px)",overflow:"hidden",background:`radial-gradient(ellipse at 70% 50%,${color}28,#0a0a0f 65%)`}}>
-      {h.thumbnail && <div style={{position:"absolute",right:0,top:0,bottom:0,width:"clamp(50%,60%,65%)",background:`url(${h.thumbnail}) center/cover`,maskImage:"linear-gradient(to left,rgba(0,0,0,.7),transparent)",WebkitMaskImage:"linear-gradient(to left,rgba(0,0,0,.7),transparent)"}}/>}
-      {!h.thumbnail && <div style={{position:"absolute",right:"-2%",top:"50%",transform:"translateY(-52%)",fontSize:"clamp(160px,26vw,380px)",opacity:.06,userSelect:"none"}}>{ge(h)}</div>}
-      <div style={{position:"absolute",inset:0,background:`linear-gradient(100deg,#0a0a0f 38%,transparent 68%)`}}/>
-      <div style={{position:"absolute",bottom:0,left:0,right:0,height:"55%",background:"linear-gradient(to top,#0a0a0f,transparent)"}}/>
-      <div key={key} style={{position:"absolute",bottom:"clamp(50px,8vh,75px)",left:0,right:0,padding:"0 clamp(14px,5vw,40px)",animation:"fadeUp .5s ease"}}>
-        {h.is_live && <div style={{display:"inline-flex",alignItems:"center",gap:5,background:"#e50914",color:"#fff",padding:"3px 12px",borderRadius:4,fontSize:10,fontWeight:800,marginBottom:10,letterSpacing:2,animation:"pulse 1.5s infinite"}}><span style={{width:5,height:5,background:"#fff",borderRadius:"50%"}}/>LIVE NOW</div>}
-        <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:"clamp(30px,7vw,68px)",lineHeight:.95,marginBottom:8,maxWidth:540,letterSpacing:1}}>{h.title}</div>
-        <div style={{fontSize:"clamp(12px,1.8vw,13px)",color:"rgba(255,255,255,.55)",maxWidth:420,lineHeight:1.6,marginBottom:14,display:"clamp(none,block,block)"}}>{h.description}</div>
-        <div style={{display:"flex",gap:8,marginBottom:16,flexWrap:"wrap"}}>
-          {h.rating && <span style={{background:"rgba(255,255,255,.1)",color:"rgba(255,255,255,.7)",fontSize:10,padding:"2px 8px",borderRadius:4,fontWeight:600}}>{h.rating}</span>}
-          {h.score>0 && <span style={{background:"rgba(245,158,11,.15)",color:"#f59e0b",fontSize:10,fontWeight:700,padding:"2px 9px",borderRadius:4}}>★ {h.score}</span>}
-          {h.language && <span style={{background:"rgba(255,255,255,.08)",color:"rgba(255,255,255,.5)",fontSize:10,padding:"2px 8px",borderRadius:4}}>{h.language}</span>}
-        </div>
-        <div style={{display:"flex",gap:10}}>
-          <button onClick={()=>onPlay(h)} style={{background:h.is_live?"#e50914":"#fff",color:h.is_live?"#fff":"#111",border:"none",borderRadius:9,padding:"clamp(10px,2vw,13px) clamp(18px,3vw,26px)",fontWeight:800,fontSize:"clamp(13px,2vw,15px)",cursor:"pointer"}}>▶ {h.is_live?"Watch Live":"Play Now"}</button>
-          <button style={{background:"rgba(255,255,255,.1)",color:"#fff",border:"1px solid rgba(255,255,255,.2)",borderRadius:9,padding:"clamp(10px,2vw,13px) clamp(14px,2.5vw,20px)",fontSize:"clamp(13px,2vw,14px)",cursor:"pointer"}}>+ My List</button>
-        </div>
-      </div>
-      <div style={{position:"absolute",bottom:"clamp(12px,2.5vh,18px)",left:"50%",transform:"translateX(-50%)",display:"flex",gap:5}}>
-        {items.slice(0,5).map((_,i)=>(
-          <div key={i} onClick={()=>{setIdx(i);setKey(k=>k+1);}} style={{height:4,borderRadius:2,cursor:"pointer",transition:"all .3s",width:i===idx?22:5,background:i===idx?color:"rgba(255,255,255,.2)"}}/>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-/* ── Empty State ── */
-function Empty({ icon, msg }) {
-  return (
-    <div style={{textAlign:"center",padding:"clamp(40px,10vh,60px) 20px",color:"#333"}}>
-      <div style={{fontSize:48,marginBottom:14,opacity:.4}}>{icon}</div>
-      <div style={{fontSize:14,fontWeight:600,color:"#2a2a36",marginBottom:6}}>{msg}</div>
-      <div style={{fontSize:12,color:"#1a1a26"}}>Content added in admin panel will appear here</div>
-    </div>
-  );
-}
-
-/* ── Main Home ── */
-export default function Home({ onNavigate, user, onUpgrade }) {
-  const [cat,        setCat]        = useState("For You");
-  const [content,    setContent]    = useState([]);
-  const [loading,    setLoading]    = useState(true);
-  const [playItem,   setPlayItem]   = useState(null);
-  const [showSearch, setShowSearch] = useState(false);
-  const [scrolled,   setScrolled]   = useState(false);
+export default function Profile({onNavigate,user,onLogout,onUpgrade}){
+  const[tab,setTab]=useState("profile");
+  const[userData,setUserData]=useState(user||{});
+  const[watchlist,setWatchlist]=useState([]);
+  const[history,setHistory]=useState([]);
+  const[notifs,setNotifs]=useState([]);
+  const[sub,setSub]=useState(null);
+  const[toast,setToast]=useState(null);
+  const[toastType,setToastType]=useState("ok");
+  const[editName,setEditName]=useState(false);
+  const[newName,setNewName]=useState(user?.name||"");
+  const[editEmail,setEditEmail]=useState(false);
+  const[newEmail,setNewEmail]=useState(user?.email||"");
+  const[savingName,setSavingName]=useState(false);
+  const[savingEmail,setSavingEmail]=useState(false);
+  const[prefs,setPrefs]=useState({autoplay:true,skipIntro:true,notifications:true,emailAlerts:false});
+  const[appLang,setAppLang]=useState(user?.language||"en");
+  const[showLang,setShowLang]=useState(false);
+  const[showSupport,setShowSupport]=useState(false);  // ← AI Support
+  const[showDelete,setShowDelete]=useState(false);
+  const[deleteConfirm,setDeleteConfirm]=useState("");
+  const[deleting,setDeleting]=useState(false);
 
   useEffect(()=>{
-    loadContent();
-    const fn=()=>setScrolled(window.scrollY>10);
-    window.addEventListener("scroll",fn);
-    return()=>window.removeEventListener("scroll",fn);
-  },[]);
+    if(!user?.id)return;
+    loadData();
+    try{
+      const s=localStorage.getItem("nammacinema_prefs_"+user.id);
+      if(s)setPrefs(JSON.parse(s));
+      const l=localStorage.getItem("nammacinema_lang_"+user.id);
+      if(l)setAppLang(l);
+    }catch(e){}
+  },[user?.id]);
 
-  // Realtime — when admin adds/edits content it shows instantly
-  useEffect(()=>{
-    const ch = supabase.channel("home-rt")
-      .on("postgres_changes",{event:"*",schema:"public",table:"content"},()=>loadContent())
-      .subscribe();
-    return()=>supabase.removeChannel(ch);
-  },[]);
-
-  async function loadContent(){
-    setLoading(true);
-    try {
-      const { data } = await supabase
-        .from("content")
-        .select("*")
-        .eq("is_active", true)
-        .order("created_at", { ascending: false });
-      setContent(data || []);
-    } catch(e){ setContent([]); }
-    setLoading(false);
+  async function loadData(){
+    try{
+      const[w,h,n,s]=await Promise.all([
+        db.getWatchlist(user.id).catch(()=>[]),
+        db.getHistory(user.id).catch(()=>[]),
+        db.getNotifications(user.id).catch(()=>[]),
+        db.getSubscription(user.id).catch(()=>null),
+      ]);
+      setWatchlist(w||[]);setHistory(h||[]);setNotifs(n||[]);setSub(s||null);
+    }catch(e){}
   }
 
-  // Group — only real DB content, NO fake data
-  const g = {
-    live:     content.filter(c=>c.is_live||c.type==="Live"),
-    movies:   content.filter(c=>c.type==="Movie"),
-    series:   content.filter(c=>c.type==="Series"),
-    sports:   content.filter(c=>["Cricket","Football","Racing","Kabaddi","Wrestling","Sports"].includes(c.genre)),
-    kids:     content.filter(c=>c.genre==="Kids"),
-    premium:  content.filter(c=>c.is_premium),
-    news:     content.filter(c=>c.genre==="News"),
-    trending: [...content].sort((a,b)=>(b.views||0)-(a.views||0)),
-    featured: content.filter(c=>c.is_featured),
-  };
+  const showToast=(msg,type="ok")=>{setToast(msg);setToastType(type);setTimeout(()=>setToast(null),3000);};
 
-  const heroItems = [...g.featured, ...g.live].slice(0,5);
-  const hasAny    = content.length > 0;
+  async function saveName(){
+    if(!newName.trim()||!user?.id)return;
+    setSavingName(true);
+    try{const u=await db.updateUser(user.id,{name:newName.trim()});setUserData(u||{...userData,name:newName.trim()});localStorage.setItem("nammacinema_user",JSON.stringify(u||userData));showToast("Name updated ✓");setEditName(false);}
+    catch(e){showToast("Failed","err");}
+    setSavingName(false);
+  }
 
-  function rows(){
-    switch(cat){
-      case "Live":    return [["🔴 Live Channels", g.live]];
-      case "Movies":  return [["🎬 Movies",         g.movies]];
-      case "Series":  return [["📺 Series",          g.series]];
-      case "Sports":  return [["🏆 Sports",          g.sports]];
-      case "Kids":    return [["🧸 Kids",             g.kids]];
-      case "Premium": return [["👑 Premium",          g.premium]];
-      case "News":    return [["📰 News",             g.news]];
-      default: return [
-        ["🔴 Live Now",    g.live],
-        ["🔥 Trending",    g.trending.slice(0,12)],
-        ["🎬 Movies",      g.movies],
-        ["📺 Series",      g.series],
-        ["🏆 Sports",      g.sports],
-        ["🧸 Kids",        g.kids],
-        ["👑 Originals",   g.premium],
-        ["📰 News",        g.news],
-      ];
+  async function saveEmail(){
+    if(!user?.id)return;
+    if(!newEmail.trim()){
+      setPrefs(p=>({...p,emailAlerts:false}));savePrefs({...prefs,emailAlerts:false});
+      try{await db.updateUser(user.id,{email:""});}catch(e){}
+      setUserData(u=>({...u,email:""}));localStorage.setItem("nammacinema_user",JSON.stringify({...userData,email:""}));
+      showToast("Email removed");setEditEmail(false);return;
     }
+    if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(newEmail.trim())){showToast("Enter a valid email","err");return;}
+    setSavingEmail(true);
+    try{const u=await db.updateUser(user.id,{email:newEmail.trim()});setUserData(u||{...userData,email:newEmail.trim()});localStorage.setItem("nammacinema_user",JSON.stringify(u||userData));const np={...prefs,emailAlerts:true};setPrefs(np);savePrefs(np);showToast("Email saved ✓");setEditEmail(false);}
+    catch(e){showToast("Failed","err");}
+    setSavingEmail(false);
   }
 
-  const catEmptyMsg = {
-    "Live":    ["🔴","No live channels yet"],
-    "Movies":  ["🎬","No movies yet"],
-    "Series":  ["📺","No series yet"],
-    "Sports":  ["🏆","No sports content yet"],
-    "Kids":    ["🧸","No kids content yet"],
-    "Premium": ["👑","No premium content yet"],
-    "News":    ["📰","No news channels yet"],
-  };
+  function savePrefs(p){if(!user?.id)return;localStorage.setItem("nammacinema_prefs_"+user.id,JSON.stringify(p));}
 
-  return (
-    <div style={{minHeight:"100vh",background:"#0a0a0f",paddingBottom:"clamp(70px,12vw,88px)"}}>
-      <style>{GS}</style>
+  function togglePref(key){
+    if(key==="emailAlerts"&&!prefs.emailAlerts&&!userData?.email){showToast("Add email first","err");setEditEmail(true);return;}
+    const n={...prefs,[key]:!prefs[key]};setPrefs(n);savePrefs(n);showToast(n[key]?"Enabled ✓":"Disabled");
+  }
 
-      {showSearch && <Search onPlay={i=>{setPlayItem(i);setShowSearch(false);}} onClose={()=>setShowSearch(false)} content={content}/>}
-      {playItem   && (
-    <UniversalPlayer
-      content={playItem}
-      user={user}
-      onClose={() => setPlayItem(null)}
-      onNext={(nextItem) => {
-        if (nextItem && nextItem.id) {
-          setPlayItem(nextItem);
-        }
-      }}
-    />
-  )}
+  function saveLang(code){
+    setAppLang(code);if(user?.id)localStorage.setItem("nammacinema_lang_"+user.id,code);
+    db.updateUser(user.id,{language:code}).catch(()=>{});showToast("Language updated ✓");setShowLang(false);
+  }
 
-      {/* ── NAVBAR ── */}
-      <nav style={{position:"fixed",top:0,left:0,right:0,zIndex:200,background:scrolled?"rgba(10,10,15,.97)":"transparent",backdropFilter:scrolled?"blur(16px)":"none",borderBottom:scrolled?"1px solid rgba(255,255,255,.05)":"none",transition:"all .3s"}}>
-        <div style={{display:"flex",alignItems:"center",gap:"clamp(8px,2vw,16px)",padding:"0 clamp(14px,4vw,24px)",height:"clamp(50px,8vw,56px)"}}>
-          <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:"clamp(22px,4vw,27px)",letterSpacing:2,cursor:"pointer",lineHeight:1,flexShrink:0}} onClick={()=>setCat("For You")}>
-            <span style={{color:"#e50914"}}>NAMMA</span><span>X</span>
-          </div>
-          <div style={{flex:1}}/>
-          <button onClick={()=>setShowSearch(true)} style={{display:"flex",alignItems:"center",gap:7,background:"rgba(255,255,255,.07)",border:"1px solid rgba(255,255,255,.08)",borderRadius:8,padding:"7px clamp(10px,2vw,14px)",color:"#aaa",fontSize:13,cursor:"pointer"}}>
-            🔍 Search
-          </button>
-          <button onClick={onUpgrade} style={{background:"rgba(229,9,20,.12)",border:"1px solid rgba(229,9,20,.3)",color:"#89050b",borderRadius:8,padding:"7px clamp(9px,1.5vw,13px)",fontSize:12,fontWeight:700,cursor:"pointer",whiteSpace:"nowrap"}}>
-            👑 Premium
-          </button>
-          <div onClick={()=>onNavigate("profile")} style={{width:34,height:34,borderRadius:"50%",background:"linear-gradient(135deg,#e50914,#ff4444)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:14,cursor:"pointer",fontWeight:700,flexShrink:0}}>
-            {user?.name?.[0]?.toUpperCase()||"👤"}
-          </div>
-        </div>
-        {/* Category tabs */}
-        <div style={{display:"flex",overflowX:"auto",padding:"0 clamp(14px,4vw,24px)",borderBottom:"1px solid rgba(255,255,255,.06)"}}>
-          {CATS.map(c=><button key={c} className={`pt${cat===c?" on":""}`} onClick={()=>setCat(c)}>{c}</button>)}
-        </div>
-      </nav>
+  async function deleteAccount(){
+    if(deleteConfirm.toLowerCase()!=="delete")return;
+    setDeleting(true);
+    try{
+      if(user?.id){
+        await supabase.from("watchlist").delete().eq("user_id",user.id).catch(()=>{});
+        await supabase.from("watch_history").delete().eq("user_id",user.id).catch(()=>{});
+        await supabase.from("notifications").delete().eq("user_id",user.id).catch(()=>{});
+        await supabase.from("profiles").delete().eq("user_id",user.id).catch(()=>{});
+        await supabase.from("subscriptions").delete().eq("user_id",user.id).catch(()=>{});
+        await supabase.from("users").delete().eq("id",user.id).catch(()=>{});
+        await supabase.auth.signOut().catch(()=>{});
+      }
+      localStorage.removeItem("nammacinema_user");
+      localStorage.removeItem("nammacinema_prefs_"+user?.id);
+      localStorage.removeItem("nammacinema_lang_"+user?.id);
+      showToast("Account deleted. Goodbye 👋");
+      setTimeout(()=>onLogout(),2000);
+    }catch(e){showToast("Delete failed. Try again.","err");}
+    setDeleting(false);
+  }
 
-      {/* ── HERO (only if content exists) ── */}
-      {cat==="For You" && !loading && heroItems.length>0 && <Hero items={heroItems} onPlay={setPlayItem}/>}
-      {(cat!=="For You" || heroItems.length===0) && <div style={{height:"clamp(96px,14vw,108px)"}}/>}
+  const plan=userData?.plan||"free";
+  const planInfo={
+    free:{name:"Free",color:"#555",price:"₹0",icon:"🆓"},
+    plan_mobile:{name:"Mobile",color:"#3b82f6",price:"₹149/mo",icon:"📱"},
+    plan_basic:{name:"Basic",color:"#8b5cf6",price:"₹299/mo",icon:"⭐"},
+    plan_premium:{name:"Premium",color:RED,price:"₹499/mo",icon:"👑"},
+    plan_annual:{name:"Annual",color:"#f59e0b",price:"₹999/yr",icon:"🏆"},
+    premium:{name:"Premium",color:RED,price:"₹499/mo",icon:"👑"},
+  }[plan]||{name:"Free",color:"#555",price:"₹0",icon:"🆓"};
 
-      {/* ── CONTENT ── */}
-      {loading ? (
-        // Loading skeleton
-        <div style={{padding:"clamp(14px,4vw,24px)"}}>
-          {[1,2,3].map(i=>(
-            <div key={i} style={{marginBottom:32}}>
-              <div style={{height:16,width:150,background:"#1a1a26",borderRadius:5,marginBottom:12}}/>
-              <div style={{display:"flex",gap:12}}>
-                {[1,2,3,4].map(j=>(
-                  <div key={j} style={{width:"clamp(140px,28vw,165px)",height:"clamp(115px,22vw,128px)",background:"#1a1a26",borderRadius:9,flexShrink:0}}/>
-                ))}
-              </div>
-            </div>
-          ))}
-        </div>
-      ) : (
-        <div style={{paddingTop: cat==="For You" && heroItems.length>0 ? 24 : 8}}>
+  const unread=notifs.filter(n=>!n.is_read).length;
+  const selLang=LANGUAGES.find(l=>l.code===appLang)||LANGUAGES[1];
 
-          {/* No content at all — show big empty state */}
-          {!hasAny && cat==="For You" && (
-            <div style={{textAlign:"center",padding:"60px 20px",animation:"fadeIn .4s ease"}}>
-              <div style={{fontSize:72,marginBottom:20,opacity:.3}}>🎬</div>
-              <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:28,letterSpacing:1,marginBottom:8,color:"#2a2a36"}}>No Content Yet</div>
-              <div style={{fontSize:14,color:"#222",marginBottom:24}}>Go to Admin Panel and add your first movie, series or live channel</div>
-              <button onClick={()=>onNavigate("admin")} style={{background:"#e50914",color:"#fff",border:"none",borderRadius:10,padding:"12px 28px",fontWeight:700,fontSize:14,cursor:"pointer"}}>
-                Open Admin Panel →
-              </button>
-            </div>
-          )}
+  const TABS=[
+    {id:"profile",label:"Profile",icon:"👤"},
+    {id:"watchlist",label:"Watchlist",icon:"♥"},
+    {id:"history",label:"History",icon:"🕐"},
+    {id:"notifications",label:`Alerts${unread>0?` (${unread})`:""}`,icon:"🔔"},
+    {id:"settings",label:"Settings",icon:"⚙️"},
+  ];
 
-          {/* Content rows — only real data, empty rows are hidden */}
-          {hasAny && rows().map(([label,items],i)=>(
-            <Row key={i} label={label} items={items} onPlay={setPlayItem}/>
-          ))}
+  const Card=({children,style={}})=>(
+    <div style={{background:S1,border:`1px solid ${BD}`,borderRadius:14,padding:16,marginBottom:14,...style}}>{children}</div>
+  );
 
-          {/* Category empty state */}
-          {hasAny && cat!=="For You" && rows().every(([,items])=>!items?.length) && (
-            <Empty icon={catEmptyMsg[cat]?.[0]||"📂"} msg={catEmptyMsg[cat]?.[1]||"No content yet"}/>
-          )}
+  const Row=({icon,label,sub,right,onClick,last,danger})=>(
+    <div onClick={onClick} style={{display:"flex",alignItems:"center",gap:12,padding:"11px 0",borderBottom:last?"none":`1px solid ${BD}22`,cursor:onClick?"pointer":"default",transition:"opacity .15s"}}
+      onMouseEnter={e=>{if(onClick)e.currentTarget.style.opacity=".8";}}
+      onMouseLeave={e=>e.currentTarget.style.opacity="1"}>
+      {icon&&<div style={{width:34,height:34,borderRadius:9,background:danger?"rgba(248,113,113,.1)":"rgba(255,255,255,.05)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:16,flexShrink:0}}>{icon}</div>}
+      <div style={{flex:1}}>
+        <div style={{fontSize:13,fontWeight:600,color:danger?"#f87171":"#e0e0ee"}}>{label}</div>
+        {sub&&<div style={{fontSize:11,color:MT,marginTop:1}}>{sub}</div>}
+      </div>
+      {right}
+      {onClick&&!right&&<div style={{color:"#2a2a3a",fontSize:18}}>›</div>}
+    </div>
+  );
 
-          {/* Premium banner — only if content exists */}
-          {hasAny && cat==="For You" && (
-            <div style={{margin:`8px clamp(14px,4vw,24px) 40px`,borderRadius:14,background:"linear-gradient(120deg,#e50914,#ff6b35)",padding:"clamp(18px,4vw,26px) clamp(18px,5vw,32px)",display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:14}}>
-              <div>
-                <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:"clamp(20px,4vw,26px)",letterSpacing:1,marginBottom:4}}>Upgrade to StreamX Premium</div>
-                <div style={{fontSize:"clamp(11px,2vw,13px)",color:"rgba(255,255,255,.8)"}}>4K · HDR · No Ads · 4 Screens · Downloads</div>
-              </div>
-              <button onClick={onUpgrade} style={{background:"#fff",color:"#e50914",border:"none",borderRadius:9,padding:"clamp(10px,2vw,12px) clamp(16px,3vw,22px)",fontWeight:800,fontSize:"clamp(12px,2vw,14px)",cursor:"pointer",whiteSpace:"nowrap"}}>
-                Subscribe ₹499/mo
-              </button>
-            </div>
-          )}
+  const Toggle=({on,onChange})=>(
+    <div onClick={onChange} style={{width:44,height:24,borderRadius:12,background:on?RED:"#1f1f2e",position:"relative",cursor:"pointer",transition:"background .2s",flexShrink:0}}>
+      <div style={{width:18,height:18,borderRadius:"50%",background:"#fff",position:"absolute",top:3,left:on?23:3,transition:"left .2s"}}/>
+    </div>
+  );
+
+  return(
+    <div style={{minHeight:"100vh",background:BG,fontFamily:"Inter,sans-serif",paddingBottom:80}}>
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+        *{box-sizing:border-box;margin:0;padding:0;}
+        @keyframes fadeUp{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:translateY(0)}}
+        @keyframes fadeIn{from{opacity:0}to{opacity:1}}
+        .inp{background:#0a0a14;border:1.5px solid #1a1a2c;border-radius:8px;color:#fff;padding:10px 14px;font-size:14px;outline:none;font-family:Inter,sans-serif;width:100%;transition:border-color .2s;}
+        .inp:focus{border-color:#e50914;}
+        .lang-opt{display:flex;align-items:center;gap:10px;padding:11px 14px;cursor:pointer;border-radius:8px;transition:background .14s;}
+        .lang-opt:hover{background:rgba(255,255,255,.05);}
+      `}</style>
+
+      {/* AI Customer Support — opens as full screen overlay */}
+      {showSupport&&<CustomerSupport user={user} onClose={()=>setShowSupport(false)}/>}
+
+      {/* Toast */}
+      {toast&&(
+        <div style={{position:"fixed",top:18,left:"50%",transform:"translateX(-50%)",zIndex:9999,background:toastType==="err"?"rgba(248,113,113,.12)":"rgba(0,200,83,.1)",border:`1px solid ${toastType==="err"?"rgba(248,113,113,.3)":"rgba(0,200,83,.3)"}`,color:toastType==="err"?"#f87171":"#00c853",padding:"10px 22px",borderRadius:40,fontSize:13,fontWeight:600,whiteSpace:"nowrap",boxShadow:"0 4px 20px rgba(0,0,0,.5)"}}>
+          {toast}
         </div>
       )}
+
+      {/* Header */}
+      <div style={{background:`linear-gradient(160deg,${planInfo.color}18,${BG} 55%)`,borderBottom:`1px solid ${BD}`}}>
+        <div style={{display:"flex",alignItems:"center",gap:14,padding:"14px 20px 0"}}>
+          <div style={{fontWeight:900,fontSize:22,letterSpacing:1,cursor:"pointer"}} onClick={()=>onNavigate("home")}>
+            <span style={{color:RED}}>NAMMA</span><span style={{color:"#fff"}}> CINEMA</span>
+          </div>
+          <div style={{flex:1}}/>
+          <button onClick={()=>onNavigate("home")} style={{background:"rgba(255,255,255,.06)",border:`1px solid ${BD}`,color:"#aaa",borderRadius:8,padding:"7px 14px",fontSize:12,cursor:"pointer"}}>← Home</button>
+        </div>
+        <div style={{padding:"20px 20px 0",display:"flex",gap:18,alignItems:"flex-end",flexWrap:"wrap"}}>
+          <div style={{width:78,height:78,borderRadius:"50%",background:`linear-gradient(135deg,${planInfo.color}44,${planInfo.color}18)`,border:`3px solid ${planInfo.color}`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:30,fontWeight:700,flexShrink:0}}>
+            {userData?.name?.[0]?.toUpperCase()||"👤"}
+          </div>
+          <div style={{flex:1,paddingBottom:16}}>
+            <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:4}}>
+              <div style={{fontSize:22,fontWeight:800}}>{userData?.name||"User"}</div>
+              <button onClick={()=>{setEditName(true);setNewName(userData?.name||"");}} style={{background:"none",border:`1px solid ${BD}`,color:MT,borderRadius:6,padding:"2px 8px",fontSize:11,cursor:"pointer"}}>✏️</button>
+            </div>
+            <div style={{fontSize:12,color:MT}}>
+              {userData?.email||userData?.phone||"No contact"} ·
+              <span style={{color:planInfo.color,fontWeight:700,marginLeft:6}}>{planInfo.icon} {planInfo.name}</span>
+            </div>
+            <div style={{display:"flex",gap:20,marginTop:12,flexWrap:"wrap"}}>
+              {[[watchlist.length,"Watchlist"],[history.length,"Watched"],[unread,"Alerts"]].map(([n,l])=>(
+                <div key={l}>
+                  <div style={{fontSize:20,fontWeight:900,color:RED,fontFamily:"serif"}}>{n}</div>
+                  <div style={{fontSize:10,color:MT}}>{l}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+        <div style={{display:"flex",overflowX:"auto",padding:"0 20px",borderTop:`1px solid ${BD}`,marginTop:16}}>
+          {TABS.map(t=>(
+            <button key={t.id} onClick={()=>setTab(t.id)} style={{background:"none",border:"none",color:tab===t.id?"#fff":MT,fontWeight:tab===t.id?700:500,padding:"10px 14px",cursor:"pointer",fontSize:13,whiteSpace:"nowrap",borderBottom:`2px solid ${tab===t.id?RED:"transparent"}`,fontFamily:"Inter,sans-serif",transition:"all .15s"}}>
+              {t.icon} {t.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div style={{maxWidth:580,margin:"0 auto",padding:"16px 16px 40px"}}>
+
+        {/* ══ PROFILE ══ */}
+        {tab==="profile"&&(
+          <div style={{animation:"fadeUp .3s ease"}}>
+            <div style={{background:`linear-gradient(120deg,${planInfo.color}18,${planInfo.color}06)`,border:`1px solid ${planInfo.color}33`,borderRadius:14,padding:18,marginBottom:14}}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
+                <div>
+                  <div style={{fontSize:20,fontWeight:900,color:planInfo.color}}>{planInfo.icon} {planInfo.name} Plan</div>
+                  <div style={{fontSize:12,color:MT,marginTop:2}}>{sub?`Active · Expires ${new Date(sub.end_date).toLocaleDateString("en-IN")}`:"No active subscription"}</div>
+                </div>
+                <div style={{fontSize:22,fontWeight:900}}>{planInfo.price}</div>
+              </div>
+              <button onClick={onUpgrade} style={{width:"100%",background:planInfo.color,border:"none",color:"#fff",borderRadius:8,padding:"11px",fontWeight:700,fontSize:13,cursor:"pointer",fontFamily:"Inter,sans-serif"}}>
+                {plan==="plan_premium"||plan==="premium"?"Manage Subscription":"Upgrade to Premium 👑"}
+              </button>
+            </div>
+            {editName&&(
+              <Card>
+                <div style={{fontSize:11,color:MT,fontWeight:700,textTransform:"uppercase",letterSpacing:.5,marginBottom:10}}>Edit Name</div>
+                <input className="inp" value={newName} onChange={e=>setNewName(e.target.value)} placeholder="Enter your name" autoFocus onKeyDown={e=>{if(e.key==="Enter")saveName();if(e.key==="Escape")setEditName(false);}}/>
+                <div style={{display:"flex",gap:8,marginTop:10}}>
+                  <button onClick={()=>setEditName(false)} style={{flex:1,background:"rgba(255,255,255,.06)",border:`1px solid ${BD}`,color:"#aaa",borderRadius:8,padding:"9px",fontSize:13,cursor:"pointer",fontFamily:"Inter,sans-serif"}}>Cancel</button>
+                  <button onClick={saveName} disabled={savingName||!newName.trim()} style={{flex:2,background:RED,border:"none",color:"#fff",borderRadius:8,padding:"9px",fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"Inter,sans-serif"}}>{savingName?"Saving...":"Save Name"}</button>
+                </div>
+              </Card>
+            )}
+            <Card>
+              <div style={{fontSize:11,color:MT,fontWeight:700,textTransform:"uppercase",letterSpacing:.5,marginBottom:10}}>Personal Info</div>
+              <Row label="Full Name" sub={userData?.name||"Not set"} onClick={()=>{setEditName(true);setNewName(userData?.name||"");}}/>
+              <Row label="Mobile Number" sub={userData?.phone||"Not set"}/>
+              <Row label="Email Address" sub={userData?.email||"Not added"} onClick={()=>{setEditEmail(true);setNewEmail(userData?.email||"");}} last/>
+            </Card>
+            {editEmail&&(
+              <Card>
+                <div style={{fontSize:11,color:MT,fontWeight:700,textTransform:"uppercase",letterSpacing:.5,marginBottom:6}}>Email Address</div>
+                <div style={{fontSize:12,color:MT,marginBottom:10}}>Used for login OTP and notifications</div>
+                <input className="inp" value={newEmail} onChange={e=>setNewEmail(e.target.value)} placeholder="Enter email address" type="email" autoFocus onKeyDown={e=>{if(e.key==="Enter")saveEmail();if(e.key==="Escape")setEditEmail(false);}}/>
+                <div style={{display:"flex",gap:8,marginTop:10}}>
+                  <button onClick={()=>setEditEmail(false)} style={{flex:1,background:"rgba(255,255,255,.06)",border:`1px solid ${BD}`,color:"#aaa",borderRadius:8,padding:"9px",fontSize:13,cursor:"pointer",fontFamily:"Inter,sans-serif"}}>Cancel</button>
+                  <button onClick={saveEmail} disabled={savingEmail} style={{flex:2,background:RED,border:"none",color:"#fff",borderRadius:8,padding:"9px",fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"Inter,sans-serif"}}>{savingEmail?"Saving...":"Save Email"}</button>
+                </div>
+              </Card>
+            )}
+          </div>
+        )}
+
+        {/* ══ WATCHLIST ══ */}
+        {tab==="watchlist"&&(
+          <Card>
+            <div style={{fontSize:14,fontWeight:700,marginBottom:14}}>My Watchlist ({watchlist.length})</div>
+            {watchlist.length===0?(
+              <div style={{textAlign:"center",padding:"32px 0",color:MT}}>
+                <div style={{fontSize:36,marginBottom:10}}>♥</div>
+                <div>Nothing saved yet</div>
+                <div style={{fontSize:12,marginTop:4}}>Tap + My List while watching</div>
+              </div>
+            ):watchlist.map((item,i)=>{
+              const c=item.content||{};
+              return(
+                <div key={item.id} style={{display:"flex",alignItems:"center",gap:12,padding:"11px 0",borderBottom:i<watchlist.length-1?`1px solid ${BD}22`:"none"}}>
+                  <div style={{width:52,height:36,borderRadius:6,background:`linear-gradient(135deg,${RED}22,#0a0a0f)`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,flexShrink:0}}>🎬</div>
+                  <div style={{flex:1,minWidth:0}}>
+                    <div style={{fontWeight:600,fontSize:13,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{c.title||"Unknown"}</div>
+                    <div style={{fontSize:11,color:MT}}>{c.genre} · {c.type}</div>
+                  </div>
+                  <button onClick={async()=>{await db.removeFromWatchlist(user.id,item.content_id).catch(()=>{});setWatchlist(w=>w.filter(x=>x.id!==item.id));showToast("Removed");}} style={{background:"rgba(255,255,255,.04)",border:`1px solid ${BD}`,color:MT,borderRadius:6,padding:"5px 9px",fontSize:11,cursor:"pointer"}}>✕</button>
+                </div>
+              );
+            })}
+          </Card>
+        )}
+
+        {/* ══ HISTORY ══ */}
+        {tab==="history"&&(
+          <div>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
+              <div style={{fontSize:14,fontWeight:700}}>Watch History ({history.length})</div>
+              {history.length>0&&<button onClick={async()=>{await db.clearHistory(user.id).catch(()=>{});setHistory([]);showToast("History cleared");}} style={{background:"rgba(248,113,113,.08)",border:"1px solid rgba(248,113,113,.2)",color:"#f87171",borderRadius:7,padding:"5px 12px",fontSize:11,cursor:"pointer",fontFamily:"Inter,sans-serif"}}>Clear All</button>}
+            </div>
+            <Card>
+              {history.length===0?(
+                <div style={{textAlign:"center",padding:"32px 0",color:MT}}>
+                  <div style={{fontSize:36,marginBottom:10}}>🕐</div>
+                  <div>No watch history yet</div>
+                </div>
+              ):history.map((item,i)=>{
+                const c=item.content||{};
+                return(
+                  <div key={item.id} style={{display:"flex",alignItems:"center",gap:12,padding:"11px 0",borderBottom:i<history.length-1?`1px solid ${BD}22`:"none"}}>
+                    <div style={{width:52,height:36,borderRadius:6,background:`linear-gradient(135deg,${RED}22,#0a0a0f)`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,flexShrink:0}}>🎬</div>
+                    <div style={{flex:1,minWidth:0}}>
+                      <div style={{fontWeight:600,fontSize:13,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{c.title||"Unknown"}</div>
+                      <div style={{fontSize:11,color:MT,marginTop:2}}>
+                        {item.progress_pct||0}% watched · {new Date(item.watched_at).toLocaleDateString("en-IN")}
+                      </div>
+                      {item.progress_pct>0&&item.progress_pct<100&&(
+                        <div style={{height:3,background:"#1a1a26",borderRadius:2,marginTop:5,overflow:"hidden"}}>
+                          <div style={{height:"100%",width:`${item.progress_pct}%`,background:RED,borderRadius:2}}/>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </Card>
+          </div>
+        )}
+
+        {/* ══ NOTIFICATIONS ══ */}
+        {tab==="notifications"&&(
+          <div>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
+              <div style={{fontSize:14,fontWeight:700}}>Notifications ({notifs.length})</div>
+              {unread>0&&<button onClick={async()=>{await db.markAllNotifsRead(user.id).catch(()=>{});setNotifs(n=>n.map(x=>({...x,is_read:true})));showToast("All marked read");}} style={{background:"rgba(255,255,255,.06)",border:`1px solid ${BD}`,color:"#aaa",borderRadius:7,padding:"5px 12px",fontSize:11,cursor:"pointer",fontFamily:"Inter,sans-serif"}}>Mark all read</button>}
+            </div>
+            <Card>
+              {notifs.length===0?(
+                <div style={{textAlign:"center",padding:"32px 0",color:MT}}>
+                  <div style={{fontSize:36,marginBottom:10}}>🔔</div>
+                  <div>No notifications yet</div>
+                </div>
+              ):notifs.map((n,i)=>(
+                <div key={n.id} onClick={()=>{if(!n.is_read)db.markNotifRead(n.id).catch(()=>{});setNotifs(ns=>ns.map(x=>x.id===n.id?{...x,is_read:true}:x));}}
+                  style={{display:"flex",gap:12,padding:"12px 0",borderBottom:i<notifs.length-1?`1px solid ${BD}22`:"none",cursor:"pointer",opacity:n.is_read?.6:1}}>
+                  <div style={{width:34,height:34,borderRadius:9,background:n.is_read?"rgba(255,255,255,.04)":"rgba(229,9,20,.1)",border:`1px solid ${n.is_read?BD:"rgba(229,9,20,.2)"}`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:16,flexShrink:0}}>
+                    {n.type==="welcome"?"🎉":n.type==="subscription"?"👑":n.type==="system"?"⚙️":"🔔"}
+                  </div>
+                  <div style={{flex:1,minWidth:0}}>
+                    <div style={{fontWeight:n.is_read?500:700,fontSize:13,marginBottom:2}}>{n.title}</div>
+                    <div style={{fontSize:11,color:MT,lineHeight:1.4}}>{n.message}</div>
+                    <div style={{fontSize:10,color:"#2a2a3a",marginTop:4}}>{new Date(n.created_at).toLocaleDateString("en-IN")}</div>
+                  </div>
+                  {!n.is_read&&<div style={{width:8,height:8,borderRadius:"50%",background:RED,flexShrink:0,marginTop:4}}/>}
+                </div>
+              ))}
+            </Card>
+          </div>
+        )}
+
+        {/* ══ SETTINGS ══ */}
+        {tab==="settings"&&(
+          <div style={{animation:"fadeUp .3s ease"}}>
+
+            {/* Preferences */}
+            <Card>
+              <div style={{fontSize:11,color:MT,fontWeight:700,textTransform:"uppercase",letterSpacing:.5,marginBottom:10}}>Playback</div>
+              <Row label="Autoplay Next" sub="Auto-play next episode" right={<Toggle on={prefs.autoplay} onChange={()=>togglePref("autoplay")}/>}/>
+              <Row label="Skip Intro" sub="Automatically skip intros" right={<Toggle on={prefs.skipIntro} onChange={()=>togglePref("skipIntro")}/>}/>
+              <Row label="Notifications" sub="Push alerts for new content" right={<Toggle on={prefs.notifications} onChange={()=>togglePref("notifications")}/>}/>
+              <Row label="Email Alerts" sub={userData?.email?"Alerts to "+userData.email:"Add email first"} right={<Toggle on={prefs.emailAlerts} onChange={()=>togglePref("emailAlerts")}/>} last/>
+            </Card>
+
+            {/* Language */}
+            <Card>
+              <div style={{fontSize:11,color:MT,fontWeight:700,textTransform:"uppercase",letterSpacing:.5,marginBottom:10}}>Language</div>
+              <Row icon="🌐" label="App Language" sub={`${selLang.flag} ${selLang.label}`} onClick={()=>setShowLang(true)} last/>
+            </Card>
+            {showLang&&(
+              <div style={{position:"fixed",inset:0,zIndex:500,background:"rgba(0,0,0,.8)",display:"flex",alignItems:"flex-end"}} onClick={()=>setShowLang(false)}>
+                <div style={{width:"100%",background:"#0f0f16",borderRadius:"16px 16px 0 0",padding:"16px 0 32px",maxHeight:"70vh",overflowY:"auto"}} onClick={e=>e.stopPropagation()}>
+                  <div style={{textAlign:"center",width:36,height:4,borderRadius:2,background:"#2a2a3a",margin:"0 auto 16px"}}/>
+                  <div style={{fontSize:13,fontWeight:700,padding:"0 16px",marginBottom:10}}>Select Language</div>
+                  {LANGUAGES.map(l=>(
+                    <div key={l.code} className="lang-opt" onClick={()=>saveLang(l.code)}>
+                      <span style={{fontSize:20}}>{l.flag}</span>
+                      <span style={{fontSize:14,fontWeight:appLang===l.code?700:400}}>{l.label}</span>
+                      {appLang===l.code&&<span style={{marginLeft:"auto",color:RED,fontSize:16}}>✓</span>}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Support & Help */}
+            <Card>
+              <div style={{fontSize:11,color:MT,fontWeight:700,textTransform:"uppercase",letterSpacing:.5,marginBottom:10}}>Support & Help</div>
+              {/* ← AI CUSTOMER SUPPORT BUTTON */}
+              <Row icon="🤖" label="AI Customer Support" sub="Chat with our AI — available 24/7" onClick={()=>setShowSupport(true)}/>
+              <Row icon="📧" label="Email Support" sub="support@nammacinema.in" onClick={()=>window.open("mailto:support@nammacinema.in")}/>
+              <Row icon="📋" label="Terms of Use" onClick={()=>showToast("Coming soon")}/>
+              <Row icon="🔒" label="Privacy Policy" onClick={()=>showToast("Coming soon")} last/>
+            </Card>
+
+            {/* Account */}
+            <Card>
+              <div style={{fontSize:11,color:MT,fontWeight:700,textTransform:"uppercase",letterSpacing:.5,marginBottom:10}}>Account</div>
+              <Row icon="🚪" label="Sign Out" sub="Sign out from this device" onClick={()=>{localStorage.removeItem("nammacinema_user");onLogout();}}/>
+              <Row icon="🗑️" label="Delete Account" sub="Permanently delete your account" onClick={()=>setShowDelete(true)} danger last/>
+            </Card>
+
+            {/* Delete confirm */}
+            {showDelete&&(
+              <Card style={{border:"1px solid rgba(248,113,113,.3)",background:"rgba(248,113,113,.04)"}}>
+                <div style={{fontSize:14,fontWeight:700,color:"#f87171",marginBottom:6}}>⚠️ Delete Account</div>
+                <div style={{fontSize:12,color:MT,marginBottom:12,lineHeight:1.6}}>This permanently deletes all your data — watchlist, history,subscriptions. This cannot be undone.</div>
+                <div style={{fontSize:11,color:MT,marginBottom:6}}>Type <strong style={{color:"#fff"}}>delete</strong> to confirm:</div>
+                <input className="inp" value={deleteConfirm} onChange={e=>setDeleteConfirm(e.target.value)} placeholder='Type "delete" to confirm'/>
+                <div style={{display:"flex",gap:8,marginTop:10}}>
+                  <button onClick={()=>{setShowDelete(false);setDeleteConfirm("");}} style={{flex:1,background:"rgba(255,255,255,.06)",border:`1px solid ${BD}`,color:"#aaa",borderRadius:8,padding:"9px",fontSize:13,cursor:"pointer",fontFamily:"Inter,sans-serif"}}>Cancel</button>
+                  <button onClick={deleteAccount} disabled={deleting||deleteConfirm.toLowerCase()!=="delete"} style={{flex:2,background:deleteConfirm.toLowerCase()==="delete"?"#f87171":"#1a1a26",border:"none",color:"#fff",borderRadius:8,padding:"9px",fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"Inter,sans-serif"}}>{deleting?"Deleting...":"Delete Forever"}</button>
+                </div>
+              </Card>
+            )}
+
+            <div style={{fontSize:11,color:"#1a1a26",textAlign:"center",marginTop:20}}>Namma Cinema v4.0 · Made with ❤️ in India</div>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
