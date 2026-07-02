@@ -1,165 +1,261 @@
 import { useState } from "react";
-import { supabase, db } from "./supabase.js";
+
+/*
+  Namma Cinema — Real Razorpay Payment
+  - All payment verification happens on BACKEND (secure)
+  - Frontend only opens Razorpay popup, sends result to backend
+  - Backend verifies signature and activates subscription
+
+  WHERE TO ADD YOUR KEYS:
+  - Razorpay Key ID → Railway env: RAZORPAY_KEY_ID
+  - Razorpay Secret → Railway env: RAZORPAY_KEY_SECRET
+  - DO NOT put keys in this frontend file
+*/
+
+const API = "YOUR_RAILWAY_BACKEND_URL_HERE"; // ← paste Railway URL
 
 const PLANS = [
   {
-    id: "plan_mobile",
-    name: "Mobile",
-    price: 149,
-    period: "month",
-    color: "#3b82f6",
-    icon: "📱",
-    devices: 1,
-    quality: "HD",
-    features: ["1 screen","HD quality","Mobile & tablet","Ads supported"],
-    noAds: false,
+    id:       "plan_mobile",
+    name:     "Mobile",
+    price:    149,
+    period:   "month",
+    screens:  1,
+    quality:  "HD",
+    noAds:    false,
+    color:    "#3b82f6",
+    icon:     "📱",
+    features: ["1 Screen", "HD Quality", "Mobile Only"],
   },
   {
-    id: "plan_basic",
-    name: "Basic",
-    price: 299,
-    period: "month",
-    color: "#8b5cf6",
-    icon: "⭐",
-    devices: 2,
-    quality: "Full HD",
-    features: ["2 screens","Full HD 1080p","TV + Mobile","Fewer ads"],
-    noAds: false,
+    id:       "plan_basic",
+    name:     "Basic",
+    price:    299,
+    period:   "month",
+    screens:  2,
+    quality:  "FHD",
+    noAds:    false,
+    color:    "#8b5cf6",
+    icon:     "⭐",
+    features: ["2 Screens", "Full HD", "TV + Mobile"],
   },
   {
-    id: "plan_premium",
-    name: "Premium",
-    price: 499,
-    period: "month",
-    color: "#e50914",
-    icon: "👑",
-    devices: 4,
-    quality: "4K HDR",
-    best: true,
-    features: ["4 screens","4K HDR","All devices","Downloads","NO ADS ✓","All languages"],
-    noAds: true,
+    id:       "plan_premium",
+    name:     "Premium",
+    price:    499,
+    period:   "month",
+    screens:  4,
+    quality:  "4K HDR",
+    noAds:    true,
+    color:    "#e50914",
+    icon:     "👑",
+    popular:  true,
+    features: ["4 Screens", "4K HDR", "No Ads", "Downloads", "All Devices"],
   },
   {
-    id: "plan_annual",
-    name: "Super Saver",
-    price: 999,
-    period: "year",
-    color: "#f59e0b",
-    icon: "🏆",
-    devices: 4,
-    quality: "4K HDR",
-    features: ["4 screens","4K HDR","All devices","Downloads","NO ADS ✓","Save 83%"],
-    noAds: true,
-    savings: "Save ₹4,989/yr",
+    id:       "plan_annual",
+    name:     "Annual",
+    price:    999,
+    period:   "year",
+    screens:  4,
+    quality:  "4K HDR",
+    noAds:    true,
+    color:    "#f59e0b",
+    icon:     "🏆",
+    features: ["4 Screens", "4K HDR", "No Ads", "Downloads", "Save 83%"],
   },
 ];
 
 export default function Payment({ user, onClose, onSuccess }) {
-  const [sel,     setSel]     = useState("plan_premium");
   const [loading, setLoading] = useState(false);
-  const [done,    setDone]    = useState(false);
   const [error,   setError]   = useState("");
+  const [success, setSuccess] = useState(null);
 
-  const plan = PLANS.find(p => p.id === sel) || PLANS[2];
-
-  async function loadRazorpay() {
-    return new Promise((res, rej) => {
-      if (window.Razorpay) { res(); return; }
-      const s = document.createElement("script");
-      s.src = "https://checkout.razorpay.com/v1/checkout.js";
-      s.onload = res; s.onerror = () => rej(new Error("Failed to load Razorpay"));
-      document.head.appendChild(s);
-    });
-  }
-
-  async function pay() {
+  async function handleSubscribe(plan) {
+    if (!user?.id) { setError("Please login first"); return; }
     setError(""); setLoading(true);
+
+    const token = localStorage.getItem("streamx_token");
+
     try {
-      await loadRazorpay();
+      // Step 1 — Create order on backend
+      const orderRes = await fetch(`${API}/api/subscriptions/order`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": "Bearer " + token,
+        },
+        body: JSON.stringify({ plan_id: plan.id }),
+      });
+      const orderData = await orderRes.json();
+      if (!orderData.success) { setError(orderData.msg || "Failed to create order"); setLoading(false); return; }
+
+      const { order_id, amount, key_id } = orderData.data;
+
+      // Step 2 — Open Razorpay popup
       const options = {
-        key: import.meta.env.VITE_RAZORPAY_KEY || "rzp_test_YOUR_KEY_HERE",
-        amount: plan.price * 100,
-        currency: "INR",
-        name: "StreamX",
-        description: `${plan.name} Plan`,
-        image: "https://streamx-ott.vercel.app/favicon.ico",
-        prefill: { contact: user?.phone?.replace("+91","") || "", email: user?.email || "", name: user?.name || "" },
+        key:         key_id,
+        amount:      amount,
+        currency:    "INR",
+        name:        "Namma Cinema",
+        description: `${plan.name} Plan - ₹${plan.price}/${plan.period}`,
+        order_id:    order_id,
+        prefill: {
+          name:  user.name  || "",
+          email: user.email || "",
+          contact: user.phone || "",
+        },
         theme: { color: plan.color },
-        handler: async (response) => { await activate(response.razorpay_payment_id); },
-        modal: { ondismiss: () => setLoading(false) },
+        handler: async function(response) {
+          // Step 3 — Verify payment on backend (SECURE — never skip this)
+          try {
+            const verifyRes = await fetch(`${API}/api/subscriptions/verify`, {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                "Authorization": "Bearer " + token,
+              },
+              body: JSON.stringify({
+                order_id:    order_id,
+                payment_id:  response.razorpay_payment_id,
+                signature:   response.razorpay_signature,
+                plan_id:     plan.id,
+              }),
+            });
+            const verifyData = await verifyRes.json();
+            if (!verifyData.success) { setError("Payment verification failed. Contact support."); setLoading(false); return; }
+
+            // Success!
+            setSuccess(plan);
+            setLoading(false);
+            onSuccess?.(plan.id);
+          } catch(e) {
+            setError("Verification failed. Contact support@nammacinema.in");
+            setLoading(false);
+          }
+        },
+        modal: {
+          ondismiss: () => { setLoading(false); }
+        }
       };
+
+      // Load Razorpay script if not already loaded
+      if (!window.Razorpay) {
+        await new Promise((resolve, reject) => {
+          const script = document.createElement("script");
+          script.src = "https://checkout.razorpay.com/v1/checkout.js";
+          script.onload = resolve;
+          script.onerror = reject;
+          document.body.appendChild(script);
+        });
+      }
+
       const rzp = new window.Razorpay(options);
-      rzp.on("payment.failed", (r) => { setError("Payment failed: " + r.error.description); setLoading(false); });
       rzp.open();
-    } catch(e) { setError("Payment error. Try again."); setLoading(false); }
+
+    } catch(e) {
+      setError("Something went wrong. Please try again.");
+      setLoading(false);
+    }
   }
 
-  async function activate(paymentId) {
-    try {
-      const end = new Date();
-      if (plan.period === "year") end.setFullYear(end.getFullYear() + 1);
-      else end.setMonth(end.getMonth() + 1);
-      await supabase.from("subscriptions").insert({ user_id:user.id, plan_id:plan.id, status:"active", amount:plan.price, payment_id:paymentId, end_date:end.toISOString() });
-      await supabase.from("transactions").insert({ user_id:user.id, plan_id:plan.id, amount:plan.price, status:"success", payment_id:paymentId });
-      await db.updateUser(user.id, { plan: plan.id });
-      const saved = JSON.parse(localStorage.getItem("streamx_user") || "{}");
-      localStorage.setItem("streamx_user", JSON.stringify({ ...saved, plan: plan.id }));
-      await supabase.from("notifications").insert({ user_id:user.id, type:"subscription", title:`${plan.name} Plan Activated! ${plan.icon}`, message:`Enjoy ${plan.devices} screens and ${plan.quality}!` });
-      setDone(true); setLoading(false);
-      setTimeout(() => onSuccess?.({ ...user, plan: plan.id }), 2000);
-    } catch(e) { setError("Failed to activate. Contact support."); setLoading(false); }
-  }
-
-  if (done) return (
-    <div style={{ position:"fixed",inset:0,zIndex:9999,background:"#07070c",display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"Inter,sans-serif" }}>
-      <div style={{ textAlign:"center",padding:24 }}>
-        <div style={{ fontSize:72,marginBottom:16 }}>🎉</div>
-        <div style={{ fontWeight:900,fontSize:26,color:"#fff",marginBottom:8 }}>{plan.name} Activated!</div>
-        <div style={{ fontSize:14,color:plan.color,fontWeight:700 }}>{plan.noAds?"Enjoy ad-free streaming! 🎬":"Start watching now!"}</div>
+  if (success) {
+    return (
+      <div style={{position:"fixed",inset:0,zIndex:500,background:"rgba(0,0,0,.95)",display:"flex",alignItems:"center",justifyContent:"center",padding:20,fontFamily:"Inter,sans-serif"}}>
+        <div style={{background:"#0e0e1e",border:"1px solid #1a1a2e",borderRadius:20,padding:"36px 28px",width:"100%",maxWidth:380,textAlign:"center"}}>
+          <div style={{fontSize:56,marginBottom:16}}>🎉</div>
+          <div style={{fontWeight:900,fontSize:22,color:"#fff",marginBottom:8}}>{success.icon} {success.name} Activated!</div>
+          <div style={{fontSize:14,color:"#888",marginBottom:24,lineHeight:1.6}}>
+            Your {success.name} plan is now active.<br/>Enjoy {success.quality}, {success.screens} screen{success.screens>1?"s":""}{success.noAds?" and No Ads":""}!
+          </div>
+          <button onClick={onClose} style={{width:"100%",background:"#e50914",color:"#fff",border:"none",borderRadius:12,padding:"14px",fontWeight:800,fontSize:15,cursor:"pointer",fontFamily:"Inter,sans-serif"}}>
+            Start Watching 🎬
+          </button>
+        </div>
       </div>
-    </div>
-  );
+    );
+  }
 
   return (
-    <div style={{ position:"fixed",inset:0,zIndex:9999,background:"rgba(0,0,0,.96)",display:"flex",alignItems:"center",justifyContent:"center",padding:16,fontFamily:"Inter,sans-serif",overflowY:"auto" }}>
-      <style>{`@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800;900&display=swap');*{box-sizing:border-box;}@keyframes fadeUp{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}`}</style>
-      <div style={{ width:"100%",maxWidth:420,animation:"fadeUp .3s ease" }}>
-        <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20 }}>
-          <div>
-            <div style={{ fontWeight:900,fontSize:22,color:"#fff" }}>StreamX Premium</div>
-            <div style={{ fontSize:12,color:"#555" }}>Choose your plan</div>
-          </div>
-          <button onClick={onClose} style={{ background:"rgba(255,255,255,.06)",border:"1px solid #1a1a26",color:"#aaa",borderRadius:9,width:36,height:36,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",fontSize:18 }}>✕</button>
+    <div style={{position:"fixed",inset:0,zIndex:500,background:"rgba(0,0,0,.95)",overflowY:"auto",fontFamily:"Inter,sans-serif"}}>
+      <style>{`@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');*{box-sizing:border-box;margin:0;padding:0;}`}</style>
+
+      {/* Header */}
+      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"16px 20px",borderBottom:"1px solid #1a1a2e",position:"sticky",top:0,background:"rgba(0,0,0,.95)",zIndex:10}}>
+        <div>
+          <div style={{fontWeight:900,fontSize:20,color:"#fff"}}>Choose Your Plan</div>
+          <div style={{fontSize:12,color:"#555",marginTop:2}}>Upgrade to unlock premium content</div>
         </div>
-        {PLANS.map(p => (
-          <div key={p.id} onClick={() => setSel(p.id)} style={{ background:sel===p.id?`${p.color}14`:"rgba(255,255,255,.03)",border:`2px solid ${sel===p.id?p.color:"#1a1a26"}`,borderRadius:14,padding:"14px 16px",marginBottom:10,cursor:"pointer",position:"relative",transition:"all .2s" }}>
-            {p.best && <div style={{ position:"absolute",top:-10,right:16,background:p.color,color:"#fff",fontSize:10,fontWeight:800,padding:"2px 12px",borderRadius:20 }}>MOST POPULAR</div>}
-            {p.savings && <div style={{ position:"absolute",top:-10,left:16,background:"#00c853",color:"#fff",fontSize:10,fontWeight:800,padding:"2px 10px",borderRadius:20 }}>{p.savings}</div>}
-            <div style={{ display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:8 }}>
-              <div>
-                <div style={{ display:"flex",alignItems:"center",gap:8,marginBottom:3 }}>
-                  <span style={{ fontSize:18 }}>{p.icon}</span>
-                  <span style={{ fontWeight:800,fontSize:16,color:"#fff" }}>{p.name}</span>
-                </div>
-                <div style={{ fontSize:11,color:"#666" }}>{p.devices} screen{p.devices>1?"s":""} · {p.quality}</div>
-              </div>
-              <div style={{ textAlign:"right" }}>
-                <div style={{ fontWeight:900,fontSize:22,color:p.color }}>₹{p.price}</div>
-                <div style={{ fontSize:10,color:"#555" }}>/{p.period}</div>
-              </div>
-            </div>
-            <div style={{ display:"flex",flexWrap:"wrap",gap:5 }}>
-              {p.features.map(f => (
-                <span key={f} style={{ background:"rgba(255,255,255,.05)",color:f.includes("NO ADS")?p.color:"#777",fontSize:10,fontWeight:f.includes("NO ADS")?700:400,padding:"3px 8px",borderRadius:20 }}>{f}</span>
-              ))}
-            </div>
+        <button onClick={onClose} style={{background:"rgba(255,255,255,.08)",border:"1px solid #1a1a2e",color:"#aaa",borderRadius:8,width:36,height:36,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",fontSize:18}}>✕</button>
+      </div>
+
+      <div style={{padding:"20px 16px 40px",maxWidth:480,margin:"0 auto"}}>
+
+        {/* Current plan badge */}
+        {user?.plan && user.plan !== "free" && (
+          <div style={{background:"rgba(0,200,83,.08)",border:"1px solid rgba(0,200,83,.2)",borderRadius:10,padding:"10px 16px",marginBottom:20,fontSize:13,color:"#00c853",fontWeight:600}}>
+            ✅ Current plan: {user.plan.replace("plan_","").toUpperCase()}
           </div>
-        ))}
-        {error && <div style={{ background:"rgba(248,113,113,.08)",border:"1px solid rgba(248,113,113,.2)",borderRadius:8,padding:"9px 14px",marginBottom:12,color:"#f87171",fontSize:12 }}>❌ {error}</div>}
-        <button onClick={pay} disabled={loading} style={{ width:"100%",height:54,background:loading?"#1a1a26":`linear-gradient(135deg,${plan.color},${plan.color}cc)`,color:"#fff",border:"none",borderRadius:13,fontWeight:800,fontSize:16,cursor:loading?"not-allowed":"pointer",fontFamily:"Inter,sans-serif",marginBottom:12 }}>
-          {loading?"Processing...": `Pay ₹${plan.price} · Subscribe`}
-        </button>
-        <div style={{ textAlign:"center",fontSize:11,color:"#333",lineHeight:1.8 }}>🔒 Secure payment via Razorpay · Cancel anytime</div>
+        )}
+
+        {error && (
+          <div style={{background:"rgba(248,113,113,.08)",border:"1px solid rgba(248,113,113,.2)",borderRadius:10,padding:"10px 16px",marginBottom:20,color:"#f87171",fontSize:13}}>
+            ❌ {error}
+          </div>
+        )}
+
+        {/* Plans */}
+        {PLANS.map(plan => {
+          const isCurrent = user?.plan === plan.id;
+          return (
+            <div key={plan.id} style={{background:"#0e0e1e",border:`1.5px solid ${plan.popular?"rgba(229,9,20,.4)":"#1a1a2e"}`,borderRadius:16,padding:"20px",marginBottom:14,position:"relative",overflow:"hidden"}}>
+              {plan.popular && (
+                <div style={{position:"absolute",top:0,right:0,background:"#e50914",color:"#fff",fontSize:10,fontWeight:800,padding:"4px 14px",borderRadius:"0 16px 0 8px",letterSpacing:.5}}>MOST POPULAR</div>
+              )}
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:12}}>
+                <div>
+                  <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:4}}>
+                    <span style={{fontSize:22}}>{plan.icon}</span>
+                    <span style={{fontWeight:800,fontSize:18,color:"#fff"}}>{plan.name}</span>
+                  </div>
+                  <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+                    {plan.features.map(f=>(
+                      <span key={f} style={{background:"rgba(255,255,255,.06)",color:"#aaa",fontSize:11,padding:"2px 8px",borderRadius:20}}>{f}</span>
+                    ))}
+                  </div>
+                </div>
+                <div style={{textAlign:"right",flexShrink:0,marginLeft:12}}>
+                  <div style={{fontWeight:900,fontSize:24,color:plan.color}}>₹{plan.price}</div>
+                  <div style={{fontSize:11,color:"#555"}}>per {plan.period}</div>
+                </div>
+              </div>
+
+              {isCurrent ? (
+                <div style={{width:"100%",background:"rgba(0,200,83,.1)",border:"1px solid rgba(0,200,83,.3)",color:"#00c853",borderRadius:10,padding:"11px",fontSize:13,fontWeight:700,textAlign:"center"}}>
+                  ✅ Current Plan
+                </div>
+              ) : (
+                <button
+                  onClick={() => handleSubscribe(plan)}
+                  disabled={loading}
+                  style={{width:"100%",background:loading?"#1a1a2e":`linear-gradient(135deg,${plan.color},${plan.color}cc)`,color:"#fff",border:"none",borderRadius:10,padding:"12px",fontWeight:800,fontSize:14,cursor:loading?"not-allowed":"pointer",fontFamily:"Inter,sans-serif",transition:"all .2s",boxShadow:loading?"none":`0 4px 16px ${plan.color}44`}}
+                >
+                  {loading ? "Processing..." : `Subscribe ₹${plan.price}/${plan.period === "year" ? "yr" : "mo"}`}
+                </button>
+              )}
+            </div>
+          );
+        })}
+
+        {/* Info */}
+        <div style={{background:"rgba(255,255,255,.02)",border:"1px solid #1a1a2e",borderRadius:12,padding:"16px",marginTop:8}}>
+          <div style={{fontSize:12,color:"#555",lineHeight:1.8}}>
+            🔒 Payments secured by Razorpay<br/>
+            📱 UPI, Cards, Net Banking accepted<br/>
+            🔄 Cancel anytime from your profile<br/>
+            📧 Receipt sent to {user?.email || "your email"}
+          </div>
+        </div>
       </div>
     </div>
   );

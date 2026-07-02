@@ -1,5 +1,5 @@
 {
-  "name": "streamx-backend",
+  "name": "namma-cinema-backend",
   "version": "1.0.0",
   "main": "server.js",
   "scripts": {
@@ -13,7 +13,8 @@
     "express": "^4.18.2",
     "jsonwebtoken": "^9.0.2",
     "razorpay": "^2.9.2",
-    "resend": "^2.1.0"
+    "resend": "^2.1.0",
+    "web-push": "^3.6.7"
   },
   "devDependencies": {
     "nodemon": "^3.0.2"
