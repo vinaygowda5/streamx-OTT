@@ -1,118 +1,186 @@
 import { useState, useEffect } from "react";
-import Login from "./Login.jsx";
-import Home from "./Home.jsx";
-import Profile from "./Profile.jsx";
-import Admin from "./Admin.jsx";
-import Search from "./Search.jsx";
+import Login    from "./Login.jsx";
+import Home     from "./Home.jsx";
+import Profile  from "./Profile.jsx";
+import Admin    from "./Admin.jsx";
+import Payment  from "./Payment.jsx";
+const registerPWA = async () => {};
+const subscribeToPush = async () => {};
+const canInstall = () => false;
+const promptInstall = async () => false;
+const initMonitoring = () => {};
+const trackPageView = () => {};
+const trackEvent = () => {};
 
-const ADMIN_PHONES = ["+918660570052", "+919000000000", "+919000000001"];
-const ADMIN_EMAILS = ["admin@streamx.in", "vinaygowda12096909@email.com"];
+const BACKEND = "YOUR_RAILWAY_BACKEND_URL_HERE"; // ← paste Railway URL
 
 export default function App() {
   const [user,    setUser]    = useState(null);
-  const [page,    setPage]    = useState("home");
-  const [loading, setLoading] = useState(true);
+  const [page,    setPage]    = useState("loading");
   const [upgrade, setUpgrade] = useState(false);
+  const [installBanner, setInstallBanner] = useState(false);
 
+  // ── Load user from localStorage on startup ──
   useEffect(() => {
-    // Load user from localStorage — instant, no delay
     try {
       const saved = localStorage.getItem("streamx_user");
       if (saved) {
         const u = JSON.parse(saved);
         if (u?.id) { setUser(u); setPage("home"); }
+        else setPage("login");
+      } else {
+        setPage("login");
       }
-    } catch (e) {}
-    setLoading(false);
+    } catch(e) {
+      setPage("login");
+    }
   }, []);
 
+  // ── Register PWA + monitoring after user loads ──
+  useEffect(() => {
+    registerPWA();
+    if (user) {
+      initMonitoring(user);
+      // Ask to subscribe to push notifications after 5 seconds
+      const t = setTimeout(async () => {
+        const token = localStorage.getItem("streamx_token");
+        if (token && BACKEND !== "YOUR_RAILWAY_BACKEND_URL_HERE") {
+          await subscribeToPush(BACKEND, token).catch(() => {});
+        }
+      }, 5000);
+      // Show install banner after 10 seconds if installable
+      const t2 = setTimeout(() => {
+        if (canInstall()) setInstallBanner(true);
+      }, 10000);
+      return () => { clearTimeout(t); clearTimeout(t2); };
+    }
+  }, [user]);
+
+  // ── Track page changes ──
+  useEffect(() => {
+    if (page !== "loading") trackPageView(page, user);
+  }, [page]);
+
   function handleLogin(u) {
-    const isAdmin = ADMIN_PHONES.includes(u.phone) || ADMIN_EMAILS.includes(u.email) || u.role === "admin";
-    const userData = { ...u, role: isAdmin ? "admin" : (u.role || "user"), plan: isAdmin ? "premium" : (u.plan || "free") };
-    localStorage.setItem("streamx_user", JSON.stringify(userData));
-    setUser(userData);
+    setUser(u);
+    localStorage.setItem("streamx_user", JSON.stringify(u));
     setPage("home");
+    trackEvent("login", { plan: u.plan, role: u.role });
   }
 
   function handleLogout() {
-    localStorage.removeItem("streamx_user");
     setUser(null);
-    setPage("home");
+    localStorage.removeItem("streamx_user");
+    localStorage.removeItem("streamx_token");
+    setPage("login");
+    trackEvent("logout");
   }
 
-  function handleNavigate(p) {
-    // Admin check
-    if (p === "admin") {
-      const isAdmin = user && (ADMIN_PHONES.includes(user.phone) || ADMIN_EMAILS.includes(user.email) || user.role === "admin");
-      if (!isAdmin) { alert("Admin access only!"); return; }
-    }
+  function navigate(p) {
     setPage(p);
-    window.scrollTo(0, 0);
+    trackEvent("navigate", { to: p });
   }
 
-  if (loading) return (
-    <div style={{ minHeight: "100vh", background: "#07070c", display: "flex", alignItems: "center", justifyContent: "center" }}>
-      <div style={{ textAlign: "center" }}>
-        <div style={{ fontWeight: 900, fontSize: 36, letterSpacing: 2, marginBottom: 20 }}>
-          <span style={{ color: "#e50914" }}>STREAM</span><span style={{ color: "#fff" }}>X</span>
+  // ── Loading splash ──
+  if (page === "loading") {
+    return (
+      <div style={{
+        minHeight:"100vh", background:"#07070c",
+        display:"flex", flexDirection:"column",
+        alignItems:"center", justifyContent:"center",
+        fontFamily:"Arial, sans-serif", gap:20,
+      }}>
+        <style>{`
+          @keyframes spin{to{transform:rotate(360deg)}}
+          @keyframes fadeIn{from{opacity:0}to{opacity:1}}
+        `}</style>
+        {/* StreamX Logo */}
+        <div style={{ animation:"fadeIn .5s ease", textAlign:"center" }}>
+          <div style={{ fontSize:48, fontWeight:900, letterSpacing:2, lineHeight:1 }}>
+            <span style={{ color:"#e50914" }}>STREAM</span>
+            <span style={{ color:"#fff" }}>X</span>
+          </div>
+          <div style={{ fontSize:13, color:"#333", marginTop:6, letterSpacing:3 }}>
+            INDIA'S PREMIUM OTT
+          </div>
         </div>
-        <div style={{ width: 36, height: 36, border: "3px solid #1a1a26", borderTop: "3px solid #e50914", borderRadius: "50%", animation: "spin .8s linear infinite", margin: "0 auto" }} />
-        <style>{`@keyframes spin{to{transform:rotate(360deg);}}`}</style>
+        <div style={{
+          width:36, height:36,
+          border:"3px solid #1a1a1a",
+          borderTop:"3px solid #e50914",
+          borderRadius:"50%",
+          animation:"spin .8s linear infinite",
+        }}/>
       </div>
-    </div>
-  );
-
-  if (!user) return <Login onLogin={handleLogin} />;
+    );
+  }
 
   return (
-    <div style={{ minHeight: "100vh", background: "#07070c" }}>
-      {/* Upgrade Modal */}
-      {upgrade && (
-        <div style={{ position: "fixed", inset: 0, zIndex: 9999, background: "rgba(0,0,0,.9)", display: "flex", alignItems: "center", justifyContent: "center", padding: 20, fontFamily: "Inter,sans-serif" }}>
-          <div style={{ background: "#111120", border: "1px solid #1a1a26", borderRadius: 20, padding: 32, width: "100%", maxWidth: 380, textAlign: "center" }}>
-            <div style={{ fontSize: 52, marginBottom: 14 }}>👑</div>
-            <div style={{ fontWeight: 900, fontSize: 24, marginBottom: 6 }}>StreamX Premium</div>
-            <div style={{ fontSize: 13, color: "#666", marginBottom: 24, lineHeight: 1.7 }}>4K · HDR · No Ads · 4 Screens · Downloads · All Languages</div>
-            {[
-              { name: "Mobile", price: "₹149", sub: "/month · 1 screen · HD" },
-              { name: "Basic",  price: "₹299", sub: "/month · 2 screens · FHD" },
-              { name: "Premium",price: "₹499", sub: "/month · 4 screens · 4K HDR", best: true },
-              { name: "Annual", price: "₹999", sub: "/year · Save 83% · All features", best: false },
-            ].map(p => (
-              <div key={p.name} onClick={() => setUpgrade(false)} style={{ background: p.best ? "rgba(229,9,20,.12)" : "rgba(255,255,255,.04)", border: `1px solid ${p.best ? "rgba(229,9,20,.4)" : "#1a1a26"}`, borderRadius: 12, padding: "14px 18px", marginBottom: 10, cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center", transition: "all .15s" }}>
-                <div style={{ textAlign: "left" }}>
-                  <div style={{ fontWeight: 700, fontSize: 15 }}>{p.name}{p.best && <span style={{ background: "#e50914", color: "#fff", fontSize: 9, fontWeight: 800, padding: "1px 6px", borderRadius: 3, marginLeft: 8 }}>BEST</span>}</div>
-                  <div style={{ fontSize: 11, color: "#666", marginTop: 2 }}>{p.sub}</div>
-                </div>
-                <div style={{ fontWeight: 900, fontSize: 18, color: p.best ? "#e50914" : "#fff" }}>{p.price}</div>
-              </div>
-            ))}
-            <button onClick={() => setUpgrade(false)} style={{ width: "100%", background: "rgba(255,255,255,.06)", border: "1px solid #1a1a26", color: "#aaa", borderRadius: 10, padding: "12px", fontSize: 13, cursor: "pointer", fontFamily: "Inter,sans-serif", marginTop: 4 }}>Maybe Later</button>
+    <div style={{ minHeight:"100vh", background:"#07070c" }}>
+
+      {/* ── PWA Install Banner ── */}
+      {installBanner && (
+        <div style={{
+          position:"fixed", bottom:80, left:16, right:16, zIndex:9999,
+          background:"#0e0e1e", border:"1px solid #e50914",
+          borderRadius:14, padding:"14px 16px",
+          display:"flex", alignItems:"center", gap:12,
+          boxShadow:"0 8px 32px rgba(0,0,0,.8)",
+          animation:"slideUp .3s ease",
+        }}>
+          <style>{`@keyframes slideUp{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}`}</style>
+          <div style={{
+            width:44, height:44, borderRadius:10,
+            background:"#e50914", display:"flex",
+            alignItems:"center", justifyContent:"center",
+            fontSize:22, flexShrink:0,
+          }}>🎬</div>
+          <div style={{ flex:1, minWidth:0 }}>
+            <div style={{ fontWeight:700, fontSize:14, color:"#fff", fontFamily:"Inter,sans-serif" }}>
+              Install StreamX
+            </div>
+            <div style={{ fontSize:12, color:"#666", fontFamily:"Inter,sans-serif" }}>
+              Add to home screen for quick access
+            </div>
           </div>
+          <button onClick={async () => {
+            const accepted = await promptInstall();
+            setInstallBanner(false);
+            if (accepted) trackEvent("pwa_installed");
+          }} style={{
+            background:"#e50914", color:"#fff", border:"none",
+            borderRadius:8, padding:"8px 14px", fontSize:12,
+            fontWeight:700, cursor:"pointer", fontFamily:"Inter,sans-serif",
+            flexShrink:0,
+          }}>
+            Install
+          </button>
+          <button onClick={() => setInstallBanner(false)} style={{
+            background:"none", border:"none", color:"#555",
+            cursor:"pointer", fontSize:18, flexShrink:0,
+          }}>✕</button>
         </div>
       )}
 
-      {/* Pages */}
-      {page === "home"    && <Home    onNavigate={handleNavigate} user={user} onUpgrade={() => setUpgrade(true)} />}
-      {page === "profile" && <Profile onNavigate={handleNavigate} user={user} onLogout={handleLogout} onUpgrade={() => setUpgrade(true)} />}
-      {page === "admin"   && <Admin   onNavigate={handleNavigate} user={user} />}
-      {page === "search"  && <Search  onNavigate={handleNavigate} user={user} onClose={() => setPage("home")} />}
+      {/* ── Pages ── */}
+      {page === "login"   && <Login   onLogin={handleLogin}/>}
+      {page === "home"    && <Home    onNavigate={navigate} user={user} onUpgrade={()=>setUpgrade(true)}/>}
+      {page === "profile" && <Profile onNavigate={navigate} user={user} onLogout={handleLogout} onUpgrade={()=>setUpgrade(true)}/>}
+      {page === "admin"   && user?.role === "admin" && <Admin onNavigate={navigate} user={user}/>}
 
-      {/* Bottom Nav — Mobile */}
-      {page !== "admin" && (
-        <div style={{ position: "fixed", bottom: 0, left: 0, right: 0, zIndex: 100, background: "rgba(7,7,12,.97)", backdropFilter: "blur(16px)", borderTop: "1px solid #1a1a26", display: "flex", padding: "8px 0 calc(8px + env(safe-area-inset-bottom))" }}>
-          {[
-            { id: "home",    icon: <img src="./icon/home.svg" width="24" height="24" />, label: "Home"    },
-            { id: "search",  icon: <img src="./icon/search.svg" width="24" height="24" />, label: "Search"  },
-            { id: "profile", icon: <img src="./icon/profile.svg" width="24" height="24" />, label: "Profile" },
-            ...(user?.role === "admin" ? [{ id: "admin", icon: <img src="./icon/admin.svg" width="24" height="24" />, label: "Admin" }] : []),
-          ].map(tab => (
-            <button key={tab.id} onClick={() => handleNavigate(tab.id)} style={{ flex: 1, background: "none", border: "none", display: "flex", flexDirection: "column", alignItems: "center", gap: 3, cursor: "pointer", padding: "4px 0" }}>
-              <span style={{ fontSize: 20 }}>{tab.icon}</span>
-              <span style={{ fontSize: 10, color: page === tab.id ? "#e50914" : "#555", fontWeight: page === tab.id ? 700 : 400, fontFamily: "Inter,sans-serif" }}>{tab.label}</span>
-            </button>
-          ))}
-        </div>
+      {/* ── Payment Modal ── */}
+      {upgrade && (
+        <Payment
+          user={user}
+          onClose={() => setUpgrade(false)}
+          onSuccess={(planId) => {
+            const updated = { ...user, plan: planId };
+            setUser(updated);
+            localStorage.setItem("streamx_user", JSON.stringify(updated));
+            setUpgrade(false);
+            trackEvent("subscription_purchased", { plan: planId });
+          }}
+        />
       )}
     </div>
   );
