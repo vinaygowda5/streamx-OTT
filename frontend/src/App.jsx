@@ -347,12 +347,6 @@ export default function Home({ onNavigate, user, onUpgrade }) {
             <Empty icon={catEmptyMsg[cat]?.[0]||"📂"} msg={catEmptyMsg[cat]?.[1]||"No content yet"}/>
           )}
 
-          {/* ── Pages ── */}
-      {page === "login"   && <Login   onLogin={handleLogin}/>}
-      {page === "home"    && <Home    onNavigate={navigate} user={user} onUpgrade={()=>setUpgrade(true)}/>}
-      {page === "profile" && <Profile onNavigate={navigate} user={user} onLogout={handleLogout} onUpgrade={()=>setUpgrade(true)}/>}
-      {page === "admin"   && user?.role === "admin" && <Admin onNavigate={navigate} user={user}/>}
-
           {/* Premium banner — only if content exists */}
           {hasAny && cat==="For You" && (
             <div style={{margin:`8px clamp(14px,4vw,24px) 40px`,borderRadius:14,background:"linear-gradient(120deg,#e50914,#ff6b35)",padding:"clamp(18px,4vw,26px) clamp(18px,5vw,32px)",display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:14}}>

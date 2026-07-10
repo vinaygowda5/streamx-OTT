@@ -39,9 +39,10 @@ app.use("/api/admin",         require("./src/routes/admin"));
 app.use("/api/support",       require("./src/routes/support"));
 app.use("/api/notifications", require("./src/routes/notifications"));
 app.use("/api/push",          require("./src/routes/push"));
+app.use("/api/analytics",     require("./src/routes/analytics"));
 
 app.get("/", (req,res) => res.json({
-  status: "✅ Namma Cinema Backend Running",
+  status: "✅ StreamX Backend Running",
   firewall: "🔥 3-Layer Active",
   version: "1.0.0",
 }));
@@ -50,5 +51,5 @@ app.use(require("./src/middleware/errorHandler"));
 
 const PORT = process.env.PORT || 4000;
 app.listen(PORT, () => {
-  console.log(`🎬 Namma Cinema backend on port ${PORT}`);
+  console.log(`🎬 StreamX backend on port ${PORT}`);
 });
