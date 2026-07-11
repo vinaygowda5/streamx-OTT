@@ -1,7 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { supabase, db } from "./supabase.js";
 import VideoPlayer from "./VideoPlayer.jsx";
-import Search from "./Search.jsx";
 
 const RED = "#e50914";
 
@@ -52,7 +51,6 @@ export default function Home({onNavigate, user, onUpgrade}){
   const[featured,  setFeatured] =useState(null);
   const[loading,   setLoading]  =useState(true);
   const[playItem,  setPlayItem] =useState(null);
-  const[showSearch,setShowSearch]=useState(false);
   const[trendIdx,  setTrendIdx] =useState(0);
   const trendRef=useRef(null);
 
@@ -112,16 +110,6 @@ export default function Home({onNavigate, user, onUpgrade}){
     <div style={{minHeight:"100vh",background:"#07070c",paddingBottom:80}}>
       <style>{CSS}</style>
 
-      {/* Search overlay */}
-      {showSearch&&(
-        <Search
-          user={user}
-          onClose={()=>setShowSearch(false)}
-          onNavigate={onNavigate}
-          onPlay={item=>{setShowSearch(false);setPlayItem(item);}}
-        />
-      )}
-
       {/* Video player */}
       {playItem&&(
         <UniversalPlayer
@@ -143,7 +131,7 @@ export default function Home({onNavigate, user, onUpgrade}){
           </div>
 
           {/* Search bar */}
-          <div onClick={()=>setShowSearch(true)} style={{flex:1,background:"rgba(255,255,255,.07)",border:"1px solid rgba(255,255,255,.1)",borderRadius:22,display:"flex",alignItems:"center",gap:8,padding:"8px 14px",cursor:"pointer",maxWidth:280}}>
+          <div onClick={()=>onNavigate("search")} style={{flex:1,background:"rgba(255,255,255,.07)",border:"1px solid rgba(255,255,255,.1)",borderRadius:22,display:"flex",alignItems:"center",gap:8,padding:"8px 14px",cursor:"pointer",maxWidth:280}}>
             <span style={{fontSize:14}}>🔍</span>
             <span style={{fontSize:13,color:"#555",fontWeight:500}}>Search movies, series, live...</span>
           </div>
@@ -250,27 +238,6 @@ export default function Home({onNavigate, user, onUpgrade}){
         </div>
       )}
 
-      {/* ── BOTTOM NAV ── */}
-      <div style={{position:"fixed",bottom:0,left:0,right:0,zIndex:300,background:"rgba(7,7,12,.98)",borderTop:"1px solid rgba(255,255,255,.08)",display:"flex",padding:"8px 0 calc(8px + env(safe-area-inset-bottom))"}}>
-        {[
-          {id:"home",    icon:"🏠", label:"Home"},
-          {id:"search",  icon:"🔍", label:"Search"},
-          {id:"profile", icon:"👤", label:"Profile"},
-          ...(user?.role==="admin"?[{id:"admin",icon:"⚡",label:"Admin"}]:[]),
-        ].map(n=>{
-          const isActive=(n.id==="home"&&!showSearch)||(n.id==="search"&&showSearch);
-          return(
-            <button key={n.id} onClick={()=>{
-              if(n.id==="search"){setShowSearch(true);}
-              else if(n.id==="home"){setShowSearch(false);setPlayItem(null);}
-              else onNavigate(n.id);
-            }} style={{flex:1,background:"none",border:"none",display:"flex",flexDirection:"column",alignItems:"center",gap:3,cursor:"pointer",padding:"6px 0"}}>
-              <span style={{fontSize:20}}>{n.icon}</span>
-              <span style={{fontSize:10,fontWeight:600,color:isActive||(!showSearch&&n.id==="home"&&!playItem)?RED:"#555",fontFamily:"'Manrope',sans-serif"}}>{n.label}</span>
-            </button>
-          );
-        })}
-      </div>
     </div>
   );
 }
