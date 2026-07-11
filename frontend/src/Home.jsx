@@ -194,7 +194,7 @@ export default function Home({onNavigate, user, onUpgrade}){
       {/* ── FEATURED BANNER ── */}
       {featured&&!loading&&(
         <div onClick={()=>setPlayItem(featured)} style={{position:"relative",cursor:"pointer",marginBottom:24}}>
-          <div style={{paddingTop:"56.25%",position:"relative",background:"#0a0a14"}}>
+          <div style={{height:"clamp(200px,48vw,420px)",maxHeight:"56vh",position:"relative",background:"#0a0a14"}}>
             {featured.thumbnail
               ?<img src={featured.thumbnail} alt={featured.title} style={{position:"absolute",inset:0,width:"100%",height:"100%",objectFit:"cover"}} onError={e=>e.target.style.display="none"}/>
               :<div style={{position:"absolute",inset:0,display:"flex",alignItems:"center",justifyContent:"center",fontSize:64,opacity:.15}}>🎬</div>
