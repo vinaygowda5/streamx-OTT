@@ -1,5 +1,5 @@
-import { useState, useEffect, useRef } from "react";
-import { supabase, db } from "./supabase.js";
+import { useState, useEffect, useRef, memo } from "react";
+import { supabase, db, cachedQuery } from "./supabase.js";
 import VideoPlayer from "./VideoPlayer.jsx";
 
 const RED = "#e50914";
@@ -13,6 +13,8 @@ body{background:#07070c;color:#e2e2f0;font-family:'Manrope',sans-serif;overscrol
 @keyframes slideUp{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:translateY(0)}}
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}
 @keyframes spin{to{transform:rotate(360deg)}}
+@keyframes shimmer{0%{background-position:-400px 0}100%{background-position:400px 0}}
+.skel{background:linear-gradient(90deg,#111118 25%,#181822 37%,#111118 63%);background-size:800px 100%;animation:shimmer 1.4s linear infinite;border-radius:10px;}
 .pt{background:none;border:none;font-family:'Manrope',sans-serif;font-size:13px;font-weight:600;color:#555;padding:10px 14px;cursor:pointer;white-space:nowrap;border-bottom:2px solid transparent;transition:color .18s,border-color .18s;}
 .pt.on{color:#fff;border-bottom:2px solid #e50914;}
 .pt:hover{color:#aaa;}
@@ -45,6 +47,43 @@ function UniversalPlayer({content, user, onClose, onNext}){
   );
 }
 
+const ContentCard = memo(function ContentCard({item, user, onPlay}){
+  const isLive=item.is_live||item.type==="Live";
+  const isPremium=item.is_premium&&!["plan_premium","plan_annual","premium"].includes(user?.plan);
+  return(
+    <div className="card" style={{flexShrink:0,width:"clamp(120px,30vw,160px)"}} onClick={()=>onPlay(item)}>
+      <div style={{paddingTop:"150%",position:"relative",background:"#0a0a14"}}>
+        {item.thumbnail
+          ?<img src={item.thumbnail} alt={item.title} loading="lazy" decoding="async" style={{position:"absolute",inset:0,width:"100%",height:"100%",objectFit:"cover"}} onError={e=>e.target.style.display="none"}/>
+          :<div style={{position:"absolute",inset:0,display:"flex",alignItems:"center",justifyContent:"center",fontSize:32,opacity:.2}}>🎬</div>
+        }
+        <div style={{position:"absolute",inset:0,background:"linear-gradient(to top,rgba(0,0,0,.9) 0%,transparent 60%)"}}/>
+        {isLive&&<div style={{position:"absolute",top:6,left:6,background:RED,color:"#fff",fontSize:8,fontWeight:800,padding:"2px 6px",borderRadius:3,letterSpacing:1.5,animation:"pulse 1.5s infinite"}}>● LIVE</div>}
+        {isPremium&&<div style={{position:"absolute",top:6,right:6,background:"#f59e0b",color:"#000",fontSize:8,fontWeight:800,padding:"2px 6px",borderRadius:3}}>👑</div>}
+        {item._progressPct>0&&(
+          <div style={{position:"absolute",bottom:34,left:0,right:0,height:3,background:"rgba(255,255,255,.15)"}}>
+            <div style={{height:"100%",width:`${item._progressPct}%`,background:RED}}/>
+          </div>
+        )}
+        <div style={{position:"absolute",bottom:0,left:0,right:0,padding:"8px"}}>
+          <div style={{fontSize:11,fontWeight:700,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{item.title}</div>
+          {item.genre&&<div style={{fontSize:10,color:RED,fontWeight:600,marginTop:2}}>{item.genre}</div>}
+        </div>
+      </div>
+    </div>
+  );
+});
+
+function SkeletonRow({count=6}){
+  return(
+    <div style={{display:"flex",gap:10,overflowX:"hidden",padding:"0 clamp(12px,3vw,20px)"}}>
+      {Array.from({length:count}).map((_,i)=>(
+        <div key={i} className="skel" style={{flexShrink:0,width:"clamp(120px,30vw,160px)",paddingTop:"150%"}}/>
+      ))}
+    </div>
+  );
+}
+
 export default function Home({onNavigate, user, onUpgrade}){
   const[tab,       setTab]      =useState("foryou");
   const[content,   setContent]  =useState([]);
@@ -52,25 +91,41 @@ export default function Home({onNavigate, user, onUpgrade}){
   const[loading,   setLoading]  =useState(true);
   const[playItem,  setPlayItem] =useState(null);
   const[trendIdx,  setTrendIdx] =useState(0);
+  const[continueWatching,setContinueWatching]=useState([]);
   const trendRef=useRef(null);
 
   useEffect(()=>{loadContent();},[tab]);
+  useEffect(()=>{ if(user?.id) loadContinueWatching(); },[user?.id]);
+
+  async function loadContinueWatching(){
+    try{
+      const rows=await cachedQuery(`history:${user.id}`, ()=>db.getHistory(user.id), 30000);
+      const inProgress=(rows||[])
+        .filter(r=>r.content && r.progress_pct>0 && r.progress_pct<95)
+        .map(r=>({...r.content, _progressPct:r.progress_pct}));
+      setContinueWatching(inProgress);
+    }catch(e){}
+  }
 
   async function loadContent(){
     setLoading(true);
     try{
-      let q=supabase.from("content").select("*").eq("is_active",true);
-      if(tab==="live")    q=q.or("is_live.eq.true,type.eq.Live");
-      else if(tab==="movies")  q=q.eq("type","Movie");
-      else if(tab==="series")  q=q.eq("type","Web Series");
-      else if(tab==="sports")  q=q.eq("genre","Sports");
-      else if(tab==="kids")    q=q.eq("genre","Kids");
-      else if(tab==="premium") q=q.eq("is_premium",true);
-      else if(tab==="news")    q=q.eq("genre","News");
-      q=q.order("views",{ascending:false}).limit(40);
-      const{data}=await q;
-      setContent(data||[]);
-      const feat=(data||[]).find(c=>c.is_featured)||(data||[])[0];
+      const cacheKey=`content:${tab}`;
+      const data=await cachedQuery(cacheKey, async()=>{
+        let q=supabase.from("content").select("*").eq("is_active",true);
+        if(tab==="live")    q=q.or("is_live.eq.true,type.eq.Live");
+        else if(tab==="movies")  q=q.eq("type","Movie");
+        else if(tab==="series")  q=q.eq("type","Web Series");
+        else if(tab==="sports")  q=q.eq("genre","Sports");
+        else if(tab==="kids")    q=q.eq("genre","Kids");
+        else if(tab==="premium") q=q.eq("is_premium",true);
+        else if(tab==="news")    q=q.eq("genre","News");
+        q=q.order("views",{ascending:false}).limit(40);
+        const{data}=await q;
+        return data||[];
+      }, 45000);
+      setContent(data);
+      const feat=data.find(c=>c.is_featured)||data[0];
       setFeatured(feat||null);
     }catch(e){}
     setLoading(false);
@@ -78,33 +133,12 @@ export default function Home({onNavigate, user, onUpgrade}){
 
   const trending=[...(content||[])].sort((a,b)=>(b.views||0)-(a.views||0)).slice(0,10);
   const sections=[
+    {title:"↻ Continue Watching", items:continueWatching},
     {title:"🔥 Trending Now",  items:trending},
     {title:"🎬 All Content",   items:content},
     {title:"⭐ Featured",      items:content.filter(c=>c.is_featured)},
     {title:"🆕 New Releases",  items:[...content].sort((a,b)=>new Date(b.created_at)-new Date(a.created_at)).slice(0,10)},
   ].filter(s=>s.items.length>0);
-
-  function ContentCard({item}){
-    const isLive=item.is_live||item.type==="Live";
-    const isPremium=item.is_premium&&!["plan_premium","plan_annual","premium"].includes(user?.plan);
-    return(
-      <div className="card" style={{flexShrink:0,width:"clamp(120px,30vw,160px)"}} onClick={()=>setPlayItem(item)}>
-        <div style={{paddingTop:"150%",position:"relative",background:"#0a0a14"}}>
-          {item.thumbnail
-            ?<img src={item.thumbnail} alt={item.title} style={{position:"absolute",inset:0,width:"100%",height:"100%",objectFit:"cover"}} onError={e=>e.target.style.display="none"}/>
-            :<div style={{position:"absolute",inset:0,display:"flex",alignItems:"center",justifyContent:"center",fontSize:32,opacity:.2}}>🎬</div>
-          }
-          <div style={{position:"absolute",inset:0,background:"linear-gradient(to top,rgba(0,0,0,.9) 0%,transparent 60%)"}}/>
-          {isLive&&<div style={{position:"absolute",top:6,left:6,background:RED,color:"#fff",fontSize:8,fontWeight:800,padding:"2px 6px",borderRadius:3,letterSpacing:1.5,animation:"pulse 1.5s infinite"}}>● LIVE</div>}
-          {isPremium&&<div style={{position:"absolute",top:6,right:6,background:"#f59e0b",color:"#000",fontSize:8,fontWeight:800,padding:"2px 6px",borderRadius:3}}>👑</div>}
-          <div style={{position:"absolute",bottom:0,left:0,right:0,padding:"8px"}}>
-            <div style={{fontSize:11,fontWeight:700,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{item.title}</div>
-            {item.genre&&<div style={{fontSize:10,color:RED,fontWeight:600,marginTop:2}}>{item.genre}</div>}
-          </div>
-        </div>
-      </div>
-    );
-  }
 
   return(
     <div style={{minHeight:"100vh",background:"#07070c",paddingBottom:80}}>
@@ -192,12 +226,18 @@ export default function Home({onNavigate, user, onUpgrade}){
         </div>
       )}
 
-      {/* ── LOADING ── */}
+      {/* ── SKELETON WHILE LOADING ── */}
       {loading&&(
-        <div style={{display:"flex",alignItems:"center",justifyContent:"center",padding:"60px 0",flexDirection:"column",gap:14}}>
-          <div style={{width:36,height:36,border:"3px solid #1a1a26",borderTop:`3px solid ${RED}`,borderRadius:"50%",animation:"spin .8s linear infinite"}}/>
-          <div style={{fontSize:13,color:"#444"}}>Loading content...</div>
-        </div>
+        <>
+          <div style={{padding:"0 clamp(12px,3vw,20px)",marginBottom:12}}>
+            <div className="skel" style={{height:16,width:140,marginBottom:12}}/>
+          </div>
+          <SkeletonRow count={6}/>
+          <div style={{padding:"0 clamp(12px,3vw,20px)",margin:"20px 0 12px"}}>
+            <div className="skel" style={{height:16,width:180}}/>
+          </div>
+          <SkeletonRow count={6}/>
+        </>
       )}
 
       {/* ── SECTIONS ── */}
@@ -213,7 +253,7 @@ export default function Home({onNavigate, user, onUpgrade}){
             )}
           </div>
           <div ref={si===0?trendRef:null} style={{display:"flex",gap:10,overflowX:"auto",padding:"0 clamp(12px,3vw,20px)"}}>
-            {s.items.map(item=><ContentCard key={item.id} item={item}/>)}
+            {s.items.map(item=><ContentCard key={item.id} item={item} user={user} onPlay={setPlayItem}/>)}
           </div>
         </div>
       ))}

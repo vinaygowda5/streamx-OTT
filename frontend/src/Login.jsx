@@ -8,7 +8,7 @@ import { supabase, db } from "./supabase.js";
 */
 
 const ADMIN_EMAILS = ["admin@nammacinema.in","vinaygowda12096909@gmail.com","admin@streamx.in"];
-const TEST_EMAIL   = "test@nammacinema.dev";
+const TEST_EMAIL   = "test@streamx.dev";
 const TEST_CODE    = "000000";
 
 const PLAN_DEVICES = {
@@ -271,10 +271,9 @@ export default function Login({onLogin}){
         {/* Logo */}
         <div style={{textAlign:"center",marginBottom:28}}>
           <div style={{fontWeight:900,fontSize:36,letterSpacing:2,lineHeight:1.1,marginBottom:5}}>
-            <span style={{color:"#e50914"}}>NAMMA</span><br/>
-            <span style={{color:"#fff"}}>CINEMA</span>
+            <span style={{color:"#e50914"}}>STREAM</span><span style={{color:"#fff"}}>X</span>
           </div>
-          <div style={{fontSize:12,color:"#2a2a3a"}}>ನಮ್ಮ ಸಿನಿಮಾ | India's Own OTT</div>
+          <div style={{fontSize:12,color:"#2a2a3a"}}>India's Premium OTT</div>
         </div>
 
         {/* STEP 1 — EMAIL */}

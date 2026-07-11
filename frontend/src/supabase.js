@@ -3,7 +3,29 @@ import { createClient } from "@supabase/supabase-js";
 const URL = "https://rimmzvmebnyzxrycuubk.supabase.co";
 const KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJpbW16dm1lYm55enhyeWN1dWJrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk4MjM0NzcsImV4cCI6MjA5NTM5OTQ3N30.khXzHByowmD2zWk0xW4DwdVfGrIsEq3O4SYj5twA6aU";
 
-export const supabase = createClient(URL, KEY);
+export const supabase = createClient(URL, KEY, {
+  auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: false },
+});
+
+/* ── LIGHTWEIGHT TTL CACHE ──
+   Frontend talks to Supabase directly, not through the Express backend,
+   so caching belongs here. Keeps tab-switching and back-navigation instant
+   without needing Redis/infra. Default TTL 60s — content doesn't change
+   every second, so this is safe and invisible to the user. */
+const _cache = new Map(); // key -> { data, expiresAt }
+
+export function cachedQuery(key, fetchFn, ttlMs = 60000) {
+  const hit = _cache.get(key);
+  if (hit && hit.expiresAt > Date.now()) return Promise.resolve(hit.data);
+  return fetchFn().then(data => {
+    _cache.set(key, { data, expiresAt: Date.now() + ttlMs });
+    return data;
+  });
+}
+
+export function invalidateCache(prefix) {
+  for (const k of _cache.keys()) if (!prefix || k.startsWith(prefix)) _cache.delete(k);
+}
 
 export const db = {
 

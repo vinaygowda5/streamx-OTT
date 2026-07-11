@@ -1,10 +1,20 @@
-import { useState, useEffect } from "react";
-import Login   from "./Login.jsx";
-import Home    from "./Home.jsx";
-import Profile from "./Profile.jsx";
-import Admin   from "./Admin.jsx";
-import Payment from "./Payment.jsx";
-import Search  from "./Search.jsx";
+import { useState, useEffect, Suspense, lazy } from "react";
+import Login from "./Login.jsx";
+
+const Home    = lazy(() => import("./Home.jsx"));
+const Profile = lazy(() => import("./Profile.jsx"));
+const Admin   = lazy(() => import("./Admin.jsx"));
+const Payment = lazy(() => import("./Payment.jsx"));
+const Search  = lazy(() => import("./Search.jsx"));
+
+function ScreenFallback(){
+  return(
+    <div style={{minHeight:"100vh",background:"#07070c",display:"flex",alignItems:"center",justifyContent:"center"}}>
+      <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
+      <div style={{width:32,height:32,border:"3px solid #1a1a1a",borderTop:"3px solid #e50914",borderRadius:"50%",animation:"spin .8s linear infinite"}}/>
+    </div>
+  );
+}
 
 export default function App() {
   const [user,    setUser]    = useState(null);
@@ -66,47 +76,57 @@ export default function App() {
 
       {/* Search overlay */}
       {showSearch && (
-        <Search
-          user={user}
-          onClose={()=>setShowSearch(false)}
-          onNavigate={navigate}
-          onPlay={item=>{setShowSearch(false);}}
-        />
+        <Suspense fallback={<ScreenFallback/>}>
+          <Search
+            user={user}
+            onClose={()=>setShowSearch(false)}
+            onNavigate={navigate}
+            onPlay={item=>{setShowSearch(false);}}
+          />
+        </Suspense>
       )}
 
       {/* Pages */}
       {!showSearch && page==="login"   && <Login   onLogin={handleLogin}/>}
       {!showSearch && page==="home"    && (
-        <Home
-          onNavigate={navigate}
-          user={user}
-          onUpgrade={()=>setUpgrade(true)}
-        />
+        <Suspense fallback={<ScreenFallback/>}>
+          <Home
+            onNavigate={navigate}
+            user={user}
+            onUpgrade={()=>setUpgrade(true)}
+          />
+        </Suspense>
       )}
       {!showSearch && page==="profile" && (
-        <Profile
-          onNavigate={navigate}
-          user={user}
-          onLogout={handleLogout}
-          onUpgrade={()=>setUpgrade(true)}
-        />
+        <Suspense fallback={<ScreenFallback/>}>
+          <Profile
+            onNavigate={navigate}
+            user={user}
+            onLogout={handleLogout}
+            onUpgrade={()=>setUpgrade(true)}
+          />
+        </Suspense>
       )}
       {!showSearch && page==="admin" && user?.role==="admin" && (
-        <Admin onNavigate={navigate} user={user}/>
+        <Suspense fallback={<ScreenFallback/>}>
+          <Admin onNavigate={navigate} user={user}/>
+        </Suspense>
       )}
 
       {/* Payment modal */}
       {upgrade && (
-        <Payment
-          user={user}
-          onClose={()=>setUpgrade(false)}
-          onSuccess={(planId)=>{
-            const updated={...user,plan:planId};
-            setUser(updated);
-            localStorage.setItem("streamx_user",JSON.stringify(updated));
-            setUpgrade(false);
-          }}
-        />
+        <Suspense fallback={<ScreenFallback/>}>
+          <Payment
+            user={user}
+            onClose={()=>setUpgrade(false)}
+            onSuccess={(planId)=>{
+              const updated={...user,plan:planId};
+              setUser(updated);
+              localStorage.setItem("streamx_user",JSON.stringify(updated));
+              setUpgrade(false);
+            }}
+          />
+        </Suspense>
       )}
 
       {/* Bottom navigation — only show when logged in */}
