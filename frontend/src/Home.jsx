@@ -51,24 +51,24 @@ const ContentCard = memo(function ContentCard({item, user, onPlay}){
   const isLive=item.is_live||item.type==="Live";
   const isPremium=item.is_premium&&!["plan_premium","plan_annual","premium"].includes(user?.plan);
   return(
-    <div className="card" style={{flexShrink:0,width:"clamp(120px,30vw,160px)"}} onClick={()=>onPlay(item)}>
-      <div style={{paddingTop:"150%",position:"relative",background:"#0a0a14"}}>
+    <div className="card" style={{flexShrink:0,width:"clamp(150px,42vw,220px)",background:"none"}} onClick={()=>onPlay(item)}>
+      <div style={{paddingTop:"56.25%",position:"relative",background:"#0a0a14",borderRadius:10,overflow:"hidden"}}>
         {item.thumbnail
           ?<img src={item.thumbnail} alt={item.title} loading="lazy" decoding="async" style={{position:"absolute",inset:0,width:"100%",height:"100%",objectFit:"cover"}} onError={e=>e.target.style.display="none"}/>
           :<div style={{position:"absolute",inset:0,display:"flex",alignItems:"center",justifyContent:"center",fontSize:32,opacity:.2}}>🎬</div>
         }
-        <div style={{position:"absolute",inset:0,background:"linear-gradient(to top,rgba(0,0,0,.9) 0%,transparent 60%)"}}/>
+        <div style={{position:"absolute",inset:0,background:"linear-gradient(to top,rgba(0,0,0,.7) 0%,transparent 45%)"}}/>
         {isLive&&<div style={{position:"absolute",top:6,left:6,background:RED,color:"#fff",fontSize:8,fontWeight:800,padding:"2px 6px",borderRadius:3,letterSpacing:1.5,animation:"pulse 1.5s infinite"}}>● LIVE</div>}
         {isPremium&&<div style={{position:"absolute",top:6,right:6,background:"#f59e0b",color:"#000",fontSize:8,fontWeight:800,padding:"2px 6px",borderRadius:3}}>👑</div>}
         {item._progressPct>0&&(
-          <div style={{position:"absolute",bottom:34,left:0,right:0,height:3,background:"rgba(255,255,255,.15)"}}>
+          <div style={{position:"absolute",bottom:0,left:0,right:0,height:3,background:"rgba(255,255,255,.15)"}}>
             <div style={{height:"100%",width:`${item._progressPct}%`,background:RED}}/>
           </div>
         )}
-        <div style={{position:"absolute",bottom:0,left:0,right:0,padding:"8px"}}>
-          <div style={{fontSize:11,fontWeight:700,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{item.title}</div>
-          {item.genre&&<div style={{fontSize:10,color:RED,fontWeight:600,marginTop:2}}>{item.genre}</div>}
-        </div>
+      </div>
+      <div style={{padding:"6px 2px 0"}}>
+        <div style={{fontSize:12,fontWeight:700,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{item.title}</div>
+        {item.genre&&<div style={{fontSize:10,color:"#666",fontWeight:600,marginTop:2}}>{item.genre}</div>}
       </div>
     </div>
   );
@@ -165,19 +165,9 @@ export default function Home({onNavigate, user, onUpgrade}){
           </div>
 
           {/* Search bar */}
-          <div onClick={()=>onNavigate("search")} style={{flex:1,background:"rgba(255,255,255,.07)",border:"1px solid rgba(255,255,255,.1)",borderRadius:22,display:"flex",alignItems:"center",gap:8,padding:"8px 14px",cursor:"pointer",maxWidth:280}}>
+          <div onClick={()=>onNavigate("search")} style={{flex:1,background:"rgba(255,255,255,.07)",border:"1px solid rgba(255,255,255,.1)",borderRadius:22,display:"flex",alignItems:"center",gap:8,padding:"8px 14px",cursor:"pointer",maxWidth:400}}>
             <span style={{fontSize:14}}>🔍</span>
             <span style={{fontSize:13,color:"#555",fontWeight:500}}>Search movies, series, live...</span>
-          </div>
-
-          {/* Premium button */}
-          <button onClick={onUpgrade} style={{background:"linear-gradient(135deg,#b45309,#d97706)",border:"none",color:"#fff",borderRadius:20,padding:"7px 13px",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"'Manrope',sans-serif",whiteSpace:"nowrap",flexShrink:0,display:"flex",alignItems:"center",gap:5}}>
-            👑 <span style={{display:"clamp(0px,10vw,auto)"}}>Premium</span>
-          </button>
-
-          {/* Avatar */}
-          <div onClick={()=>onNavigate("profile")} style={{width:34,height:34,borderRadius:"50%",background:`linear-gradient(135deg,${RED},#c00)`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:14,fontWeight:800,cursor:"pointer",flexShrink:0}}>
-            {user?.name?.[0]?.toUpperCase()||"N"}
           </div>
         </div>
 
