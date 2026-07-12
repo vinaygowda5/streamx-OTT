@@ -181,41 +181,6 @@ export default function Home({onNavigate, user, onUpgrade}){
         </div>
       </div>
 
-      {/* ── FEATURED BANNER ── */}
-      {featured&&!loading&&(
-        <div onClick={()=>setPlayItem(featured)} style={{position:"relative",cursor:"pointer",marginBottom:24}}>
-          <div style={{height:"clamp(200px,48vw,420px)",maxHeight:"56vh",position:"relative",background:"#0a0a14"}}>
-            {featured.thumbnail
-              ?<img src={featured.thumbnail} alt={featured.title} style={{position:"absolute",inset:0,width:"100%",height:"100%",objectFit:"cover"}} onError={e=>e.target.style.display="none"}/>
-              :<div style={{position:"absolute",inset:0,display:"flex",alignItems:"center",justifyContent:"center",fontSize:64,opacity:.15}}>🎬</div>
-            }
-            <div style={{position:"absolute",inset:0,background:"linear-gradient(to top,rgba(7,7,12,1) 0%,rgba(7,7,12,.4) 40%,transparent 70%)"}}/>
-            {/* Badge */}
-            {trending[0]?.id===featured.id&&(
-              <div style={{position:"absolute",top:12,left:12,background:RED,color:"#fff",fontSize:10,fontWeight:800,padding:"3px 10px",borderRadius:4,letterSpacing:1}}>#1 TRENDING</div>
-            )}
-            {featured.is_live&&(
-              <div style={{position:"absolute",top:12,right:12,background:RED,color:"#fff",fontSize:9,fontWeight:800,padding:"3px 9px",borderRadius:3,letterSpacing:2,animation:"pulse 1.5s infinite"}}>● LIVE</div>
-            )}
-            {/* Info */}
-            <div style={{position:"absolute",bottom:0,left:0,right:0,padding:"clamp(14px,4vw,24px)"}}>
-              <div style={{fontWeight:900,fontSize:"clamp(18px,5vw,28px)",marginBottom:6,textShadow:"0 2px 12px rgba(0,0,0,.8)"}}>{featured.title}</div>
-              <div style={{display:"flex",gap:8,marginBottom:14,flexWrap:"wrap"}}>
-                {featured.type&&<span style={{fontSize:12,color:"rgba(255,255,255,.7)"}}>{featured.type}</span>}
-                {featured.genre&&<span style={{fontSize:12,color:"rgba(255,255,255,.5)"}}>· {featured.genre}</span>}
-                {featured.release_year&&<span style={{fontSize:12,color:"rgba(255,255,255,.5)"}}>· {featured.release_year}</span>}
-                {featured.score>0&&<span style={{fontSize:12,color:"#f59e0b",fontWeight:700}}>· ⭐ {featured.score}</span>}
-              </div>
-              <div style={{display:"flex",gap:10}}>
-                <button onClick={e=>{e.stopPropagation();setPlayItem(featured);}} style={{background:RED,color:"#fff",border:"none",borderRadius:8,padding:"10px 22px",fontWeight:800,fontSize:14,cursor:"pointer",fontFamily:"'Manrope',sans-serif",display:"flex",alignItems:"center",gap:7}}>
-                  ▶ Play Now
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
       {/* ── SKELETON WHILE LOADING ── */}
       {loading&&(
         <>
@@ -245,6 +210,15 @@ export default function Home({onNavigate, user, onUpgrade}){
           <div ref={si===0?trendRef:null} style={{display:"flex",gap:10,overflowX:"auto",padding:"0 clamp(12px,3vw,20px)"}}>
             {s.items.map(item=><ContentCard key={item.id} item={item} user={user} onPlay={setPlayItem}/>)}
           </div>
+          {s.title.includes("Trending Now")&&user?.plan==="free"&&(
+            <div onClick={onUpgrade} style={{margin:"20px clamp(12px,3vw,20px) 0",background:"linear-gradient(135deg,#b45309,#d97706,#e50914)",borderRadius:14,padding:"clamp(16px,4vw,24px)",cursor:"pointer"}}>
+              <div style={{fontWeight:900,fontSize:"clamp(14px,3.5vw,18px)",textTransform:"uppercase",letterSpacing:1,marginBottom:6}}>Upgrade to StreamX Premium</div>
+              <div style={{fontSize:13,opacity:.85,marginBottom:14}}>4K · HDR · No Ads · 4 Screens · Downloads</div>
+              <button onClick={e=>{e.stopPropagation();onUpgrade();}} style={{background:"rgba(255,255,255,.15)",color:"#fff",border:"1.5px solid rgba(255,255,255,.4)",borderRadius:8,padding:"9px 20px",fontWeight:700,fontSize:14,cursor:"pointer",fontFamily:"'Manrope',sans-serif"}}>
+                Subscribe ₹499/mo
+              </button>
+            </div>
+          )}
         </div>
       ))}
 
@@ -257,16 +231,6 @@ export default function Home({onNavigate, user, onUpgrade}){
         </div>
       )}
 
-      {/* ── PREMIUM BANNER ── */}
-      {user?.plan==="free"&&!loading&&content.length>0&&(
-        <div onClick={onUpgrade} style={{margin:"0 clamp(12px,3vw,20px) 24px",background:"linear-gradient(135deg,#b45309,#d97706,#e50914)",borderRadius:14,padding:"clamp(16px,4vw,24px)",cursor:"pointer"}}>
-          <div style={{fontWeight:900,fontSize:"clamp(14px,3.5vw,18px)",textTransform:"uppercase",letterSpacing:1,marginBottom:6}}>Upgrade to StreamX Premium</div>
-          <div style={{fontSize:13,opacity:.85,marginBottom:14}}>4K · HDR · No Ads · 4 Screens · Downloads</div>
-          <button onClick={e=>{e.stopPropagation();onUpgrade();}} style={{background:"rgba(255,255,255,.15)",color:"#fff",border:"1.5px solid rgba(255,255,255,.4)",borderRadius:8,padding:"9px 20px",fontWeight:700,fontSize:14,cursor:"pointer",fontFamily:"'Manrope',sans-serif"}}>
-            Subscribe ₹499/mo
-          </button>
-        </div>
-      )}
 
     </div>
   );
