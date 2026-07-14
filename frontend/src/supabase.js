@@ -109,6 +109,14 @@ export const db = {
     const { data } = await supabase.from("watch_history").select("*, content(*)").eq("user_id", userId).order("watched_at", { ascending: false }).limit(20);
     return data || [];
   },
+  async getProgress(userId, contentId) {
+    if (!userId || !contentId) return null;
+    const { data } = await supabase.from("watch_history").select("progress_seconds,progress_pct")
+      .eq("user_id", userId).eq("content_id", contentId).maybeSingle();
+    // Don't resume if already basically finished (>=94%) — treat as a fresh watch
+    if (data && data.progress_pct < 94) return data.progress_seconds;
+    return null;
+  },
   async saveProgress(userId, contentId, progressSeconds, totalSeconds) {
     const pct = totalSeconds > 0 ? Math.round((progressSeconds / totalSeconds) * 100) : 0;
     await supabase.from("watch_history").upsert({

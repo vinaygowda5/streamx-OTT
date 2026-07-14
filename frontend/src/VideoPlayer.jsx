@@ -3,7 +3,7 @@ import Hls from "hls.js";
 import { supabase, db } from "./supabase.js";
 
 /* ═══════════════════════════════════════════════════════
-   Namma Cinema VideoPlayer — Exact Jio Hotstar Style
+   StreamX VideoPlayer — Exact Jio Hotstar Style
    ✅ Works on Phone, Tablet, Laptop, TV/System
    ✅ Auto-hide controls, tap to show
    ✅ Double-tap left/right to seek (mobile)
@@ -214,12 +214,11 @@ export default function VideoPlayer({ content, user, onClose, onNext }) {
 
   async function startInit() {
     if (!isPremium) {
-      const ads = await getAds("pre_roll", isPremium);
+      const [ads, allAds] = await Promise.all([getAds("pre_roll", isPremium), getAds("pre_roll", false)]);
       if (ads.length > 0) {
         const ad = ads[Math.floor(Math.random() * ads.length)];
         setCurrentAd(ad); setAdTimeLeft(ad.duration || 15); setAdCanSkip(false); setPhase("preroll");
         trackAd(ad.id, user?.id, "view");
-        const allAds = await getAds("pre_roll", false);
         if (allAds.length > 0) { setBannerAd(allAds[Math.floor(Math.random() * allAds.length)]); setBannerVisible(true); }
         return;
       }
@@ -249,7 +248,13 @@ export default function VideoPlayer({ content, user, onClose, onNext }) {
       if (!isM3U8) {
         // Direct MP4/video file — load normally, NOT via HLS.js
         v.src = streamUrl;
-        const onCanPlay = () => { v.volume = volume; v.play().catch(() => {}); setPlaying(true); resetHide(); setBuffering(false); };
+        const onCanPlay = () => {
+          v.volume = volume;
+          if (user?.id && content?.id) {
+            db.getProgress(user.id, content.id).then(sec => { if (sec > 5) { v.currentTime = sec; showToast("Resumed from " + fmt(sec)); } }).catch(() => {});
+          }
+          v.play().catch(() => {}); setPlaying(true); resetHide(); setBuffering(false);
+        };
         const onErr = () => {
           const code = v.error?.code;
           const msg = code === 2 ? "Network error" : code === 3 ? "File may be corrupted" : code === 4 ? "Format not supported / CORS blocked" : "Playback error";
@@ -270,7 +275,13 @@ export default function VideoPlayer({ content, user, onClose, onNext }) {
         hlsRef.current = hls;
         hls.loadSource(streamUrl);
         hls.attachMedia(v);
-        hls.on(Hls.Events.MANIFEST_PARSED, () => { v.volume = volume; v.play().catch(() => {}); setPlaying(true); resetHide(); });
+        hls.on(Hls.Events.MANIFEST_PARSED, () => {
+          v.volume = volume;
+          if (user?.id && content?.id) {
+            db.getProgress(user.id, content.id).then(sec => { if (sec > 5) { v.currentTime = sec; showToast("Resumed from " + fmt(sec)); } }).catch(() => {});
+          }
+          v.play().catch(() => {}); setPlaying(true); resetHide();
+        });
         hls.on(Hls.Events.ERROR, (_, d) => { if (d.fatal) setError("Stream unavailable. Check URL in admin."); });
       } else if (v.canPlayType("application/vnd.apple.mpegurl")) {
         v.src = streamUrl; v.play().catch(() => {}); setPlaying(true); resetHide();
