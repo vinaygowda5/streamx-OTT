@@ -355,7 +355,7 @@ export default function Home({ onNavigate, user, onUpgrade }) {
                 <div style={{fontSize:"clamp(11px,2vw,13px)",color:"rgba(255,255,255,.8)"}}>4K · HDR · No Ads · 4 Screens · Downloads</div>
               </div>
               <button onClick={onUpgrade} style={{background:"#fff",color:"#e50914",border:"none",borderRadius:9,padding:"clamp(10px,2vw,12px) clamp(16px,3vw,22px)",fontWeight:800,fontSize:"clamp(12px,2vw,14px)",cursor:"pointer",whiteSpace:"nowrap"}}>
-                Subscribe ₹499/mo
+                Subscribe ₹249/mo
               </button>
             </div>
           )}

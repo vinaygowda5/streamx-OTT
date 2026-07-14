@@ -74,10 +74,10 @@ export default function App() {
             <div style={{ fontWeight: 900, fontSize: 24, marginBottom: 6 }}>StreamX Premium</div>
             <div style={{ fontSize: 13, color: "#666", marginBottom: 24, lineHeight: 1.7 }}>4K · HDR · No Ads · 4 Screens · Downloads · All Languages</div>
             {[
-              { name: "Mobile", price: "₹149", sub: "/month · 1 screen · HD" },
-              { name: "Basic",  price: "₹299", sub: "/month · 2 screens · FHD" },
-              { name: "Premium",price: "₹499", sub: "/month · 4 screens · 4K HDR", best: true },
-              { name: "Annual", price: "₹999", sub: "/year · Save 83% · All features", best: false },
+              { name: "Mobile", price: "₹99", sub: "/month · 1 screen · HD" },
+              { name: "Basic",  price: "₹149", sub: "/month · 2 screens · FHD" },
+              { name: "Premium",price: "₹249", sub: "/month · 4 screens · 4K HDR", best: true },
+              { name: "Annual", price: "₹2499", sub: "/year · Save 83% · All features", best: false },
             ].map(p => (
               <div key={p.name} onClick={() => setUpgrade(false)} style={{ background: p.best ? "rgba(229,9,20,.12)" : "rgba(255,255,255,.04)", border: `1px solid ${p.best ? "rgba(229,9,20,.4)" : "#1a1a26"}`, borderRadius: 12, padding: "14px 18px", marginBottom: 10, cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center", transition: "all .15s" }}>
                 <div style={{ textAlign: "left" }}>
