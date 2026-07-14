@@ -4,7 +4,7 @@ import Hls from "hls.js";
 import FaceAuth from "./FaceAuth.jsx";
 
 /* ═══════════════════════════════════════════════════════════
-   Namma Cinema Admin Pro v5.0
+   STREAMX Admin Pro v5.0
    ✅ 3GB+ video upload via Cloudflare R2 (presigned URL)
    ✅ Real bar charts & analytics (pure CSS/SVG — no library needed)
    ✅ Advanced UI/UX — dark glassmorphism design
@@ -17,7 +17,7 @@ const R="#e50914", BL="#1565c0", GR="#00c853", AM="#f59e0b", PU="#8b5cf6";
 
 // ── Replace these with your Cloudflare R2 credentials ──
 const CF_ACCOUNT_ID   = "YOUR_CF_ACCOUNT_ID";   // Cloudflare → R2 → Account ID
-const CF_BUCKET_NAME  = "nammacinema-videos";         // Your R2 bucket name
+const CF_BUCKET_NAME  = "streamx-videos";         // Your R2 bucket name
 const CF_PUBLIC_URL   = "https://pub-YOUR_HASH.r2.dev"; // R2 bucket public URL
 const CF_API_TOKEN    = "YOUR_R2_API_TOKEN";      // R2 API token with write access
 
@@ -317,13 +317,13 @@ async function uploadToR2(file, onProgress) {
   try {
     // Try Supabase first (up to 50MB on free, 5GB on pro)
     onProgress(5, "Connecting to storage...");
-    const { error } = await supabase.storage.from("nammacinema-media").upload(
+    const { error } = await supabase.storage.from("streamx-media").upload(
       `videos/${fileName}`, file,
       { cacheControl:"3600", upsert:false,
         onUploadProgress: e => onProgress(Math.round((e.loaded/e.total)*90), `Uploading ${fM(e.loaded)} of ${fM(e.total)}...`) }
     );
     if (error) throw error;
-    const { data: ud } = supabase.storage.from("nammacinema-media").getPublicUrl(`videos/${fileName}`);
+    const { data: ud } = supabase.storage.from("streamx-media").getPublicUrl(`videos/${fileName}`);
     onProgress(100, "Upload complete!");
     return { url: ud.publicUrl, provider: "supabase" };
   } catch(supaErr) {
@@ -556,9 +556,9 @@ function ContentForm({initial,isLiveForm=false,onSave,onCancel,saving}){
                 try{
                   const ext=f.name.split(".").pop();
                   const path=`thumbs/${Date.now()}.${ext}`;
-                  const{error}=await supabase.storage.from("nammacinema-media").upload(path,f,{cacheControl:"3600",upsert:false});
+                  const{error}=await supabase.storage.from("streamx-media").upload(path,f,{cacheControl:"3600",upsert:false});
                   if(error)throw error;
-                  const{data:ud}=supabase.storage.from("nammacinema-media").getPublicUrl(path);
+                  const{data:ud}=supabase.storage.from("streamx-media").getPublicUrl(path);
                   set("thumbnail",ud.publicUrl);
                 }catch(e){alert("Thumb upload failed: "+e.message);}
               }}/>
@@ -1182,7 +1182,7 @@ export default function Admin({onNavigate,user}){
 
   if(loading) return(
     <div style={{minHeight:"100vh",background:"#04040e",display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",gap:18,fontFamily:"Inter,sans-serif"}}>
-      <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:32,letterSpacing:3}}><span style={{color:R}}>NAMMA</span><span style={{color:"#e2e2f0"}}> CINEMA</span></div>
+      <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:32,letterSpacing:3}}><span style={{color:R}}>STREAM</span><span style={{color:"#e2e2f0"}}>X</span></div>
       <div style={{width:44,height:44,border:`3px solid #181828`,borderTop:`3px solid ${R}`,borderRadius:"50%",animation:"spin .8s linear infinite"}}/>
       <div style={{fontSize:13,color:"#3a3a5a"}}>Loading admin panel...</div>
       <style>{CSS}</style>
@@ -1202,7 +1202,7 @@ export default function Admin({onNavigate,user}){
         {/* Logo */}
         <div style={{padding:collapsed?"14px 12px":"14px 18px",borderBottom:"1px solid #181828",display:"flex",alignItems:"center",gap:12,cursor:"pointer",flexShrink:0}} onClick={()=>setCollapsed(o=>!o)}>
           <div style={{width:32,height:32,borderRadius:10,background:"linear-gradient(135deg,rgba(229,9,20,.3),rgba(229,9,20,.1))",border:"1px solid rgba(229,9,20,.3)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:16,flexShrink:0,animation:"glow 2s infinite"}}>⚡</div>
-          {!collapsed&&<div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:18,letterSpacing:2,whiteSpace:"nowrap"}}><span style={{color:R}}>NAMMA</span><span style={{color:"#e2e2f0"}}> CINEMA</span><span style={{fontSize:9,color:"#3a3a5a",marginLeft:8,fontFamily:"Inter",letterSpacing:0}}>ADMIN PRO</span></div>}
+          {!collapsed&&<div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:18,letterSpacing:2,whiteSpace:"nowrap"}}><span style={{color:R}}>STREAMX</span><span style={{fontSize:9,color:"#3a3a5a",marginLeft:8,fontFamily:"Inter",letterSpacing:0}}>ADMIN PRO</span></div>}
         </div>
 
         {/* Nav */}
@@ -1351,7 +1351,7 @@ export default function Admin({onNavigate,user}){
                 <div style={{fontSize:15,color:AM,fontWeight:800,marginBottom:14}}>☁️ Cloudflare R2 Setup (for 3GB+ uploads)</div>
                 <div style={{fontSize:12,color:"#666688",lineHeight:2}}>
                   <div><span style={{color:"#e2e2f0",fontWeight:600}}>Step 1:</span> Go to cloudflare.com → Sign in → R2</div>
-                  <div><span style={{color:"#e2e2f0",fontWeight:600}}>Step 2:</span> Create bucket → name: <span style={{color:AM,fontFamily:"monospace"}}>nammacinema-videos</span></div>
+                  <div><span style={{color:"#e2e2f0",fontWeight:600}}>Step 2:</span> Create bucket → name: <span style={{color:AM,fontFamily:"monospace"}}>streamx-videos</span></div>
                   <div><span style={{color:"#e2e2f0",fontWeight:600}}>Step 3:</span> Settings → Public Access → Enable</div>
                   <div><span style={{color:"#e2e2f0",fontWeight:600}}>Step 4:</span> Upload video file → click file → copy Public URL</div>
                   <div><span style={{color:"#e2e2f0",fontWeight:600}}>Step 5:</span> In Admin → Add Content → R2 tab → paste URL</div>
@@ -1367,7 +1367,7 @@ export default function Admin({onNavigate,user}){
                   ["Database","Supabase PostgreSQL"],
                   ["Auth","Mobile OTP + Face ID"],
                   ["Video Storage","Cloudflare R2 + Supabase"],
-                  ["Version","Namma Cinema Admin Pro v5.0"],
+                  ["Version","STREAMX Admin Pro v5.0"],
                   ["Realtime","✅ Active"],
                 ].map(([k,v])=>(
                   <div key={k} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"11px 0",borderBottom:"1px solid #181828",fontSize:13}}>
