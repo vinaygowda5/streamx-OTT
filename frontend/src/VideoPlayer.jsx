@@ -1,4 +1,3 @@
-
 import { useState, useEffect, useRef } from "react";
 import Hls from "hls.js";
 import { supabase, db } from "./supabase.js";
@@ -591,12 +590,12 @@ export default function VideoPlayer({ content, user, onClose, onNext }) {
                 <svg width="clamp(22px,5vw,28px)" height="clamp(22px,5vw,28px)" viewBox="0 0 24 24" fill="currentColor"><path d="M12 5V1L7 6l5 5V7c3.31 0 6 2.69 6 6s-2.69 6-6 6-6-2.69-6-6H4c0 4.42 3.58 8 8 8s8-3.58 8-8-3.58-8-8-8z"/></svg>
                 <span style={{ fontSize:8, fontWeight:700, marginTop:1 }}>10</span>
               </button>
-              <button onClick={(e) => { e.stopPropagation(); togglePlay(); }} style={{ background:"rgba(0,0,0,.35)", border:"2px solid rgba(255,255,255,.35)", borderRadius:"50%", color:"#fff", cursor:"pointer", padding:0, width:"clamp(56px,14vw,72px)", height:"clamp(56px,14vw,72px)", display:"flex", alignItems:"center", justifyContent:"center" }}>
+              <button onClick={(e) => { e.stopPropagation(); togglePlay(); }} style={{ background:"none", border:"none", color:"#fff", cursor:"pointer", padding:0, width:"clamp(56px,14vw,72px)", height:"clamp(56px,14vw,72px)", display:"flex", alignItems:"center", justifyContent:"center" }}>
                 {buffering
                   ? <span style={{ width:24, height:24, border:"3px solid rgba(255,255,255,.3)", borderTop:"3px solid #fff", borderRadius:"50%", animation:"vp-spin .7s linear infinite", display:"block" }}/>
                   : playing
-                    ? <svg width="40%" height="40%" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16" rx="1"/><rect x="14" y="4" width="4" height="16" rx="1"/></svg>
-                    : <svg width="40%" height="40%" viewBox="0 0 24 24" fill="currentColor" style={{ marginLeft:3 }}><path d="M8 5v14l11-7z"/></svg>
+                    ? <svg width="65%" height="65%" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16" rx="1"/><rect x="14" y="4" width="4" height="16" rx="1"/></svg>
+                    : <svg width="65%" height="65%" viewBox="0 0 24 24" fill="currentColor" style={{ marginLeft:3 }}><path d="M8 5v14l11-7z"/></svg>
                 }
               </button>
               <button onClick={(e) => { e.stopPropagation(); skipSec(10); }} className="vp-ibtn" style={{ position:"relative", display:"flex", flexDirection:"column", alignItems:"center" }}>
