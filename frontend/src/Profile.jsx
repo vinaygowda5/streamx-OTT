@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import CustomerSupport from "./CustomerSupport.jsx";
 import { supabase, db } from "./supabase.js";
+import { promptInstall, canInstall } from "./pwa.js";
 
 const RED="#e50914",BG="#07070c",S1="#0f0f16",BD="#1a1a26",MT="#555";
 
@@ -18,6 +19,11 @@ export default function Profile({onNavigate,user,onLogout,onUpgrade}){
   const[userData,setUserData]=useState(user||{});
   const[watchlist,setWatchlist]=useState([]);
   const[history,setHistory]=useState([]);
+  const[installable,setInstallable]=useState(canInstall());
+  useEffect(()=>{
+    const t=setInterval(()=>setInstallable(canInstall()),1000);
+    return ()=>clearInterval(t);
+  },[]);
   const[notifs,setNotifs]=useState([]);
   const[sub,setSub]=useState(null);
   const[toast,setToast]=useState(null);
@@ -40,9 +46,9 @@ export default function Profile({onNavigate,user,onLogout,onUpgrade}){
     if(!user?.id)return;
     loadData();
     try{
-      const s=localStorage.getItem("nammacinema_prefs_"+user.id);
+      const s=localStorage.getItem("streamx_prefs_"+user.id);
       if(s)setPrefs(JSON.parse(s));
-      const l=localStorage.getItem("nammacinema_lang_"+user.id);
+      const l=localStorage.getItem("streamx_lang_"+user.id);
       if(l)setAppLang(l);
     }catch(e){}
   },[user?.id]);
@@ -64,7 +70,7 @@ export default function Profile({onNavigate,user,onLogout,onUpgrade}){
   async function saveName(){
     if(!newName.trim()||!user?.id)return;
     setSavingName(true);
-    try{const u=await db.updateUser(user.id,{name:newName.trim()});setUserData(u||{...userData,name:newName.trim()});localStorage.setItem("nammacinema_user",JSON.stringify(u||userData));showToast("Name updated ✓");setEditName(false);}
+    try{const u=await db.updateUser(user.id,{name:newName.trim()});setUserData(u||{...userData,name:newName.trim()});localStorage.setItem("streamx_user",JSON.stringify(u||userData));showToast("Name updated ✓");setEditName(false);}
     catch(e){showToast("Failed","err");}
     setSavingName(false);
   }
@@ -74,17 +80,17 @@ export default function Profile({onNavigate,user,onLogout,onUpgrade}){
     if(!newEmail.trim()){
       setPrefs(p=>({...p,emailAlerts:false}));savePrefs({...prefs,emailAlerts:false});
       try{await db.updateUser(user.id,{email:""});}catch(e){}
-      setUserData(u=>({...u,email:""}));localStorage.setItem("nammacinema_user",JSON.stringify({...userData,email:""}));
+      setUserData(u=>({...u,email:""}));localStorage.setItem("streamx_user",JSON.stringify({...userData,email:""}));
       showToast("Email removed");setEditEmail(false);return;
     }
     if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(newEmail.trim())){showToast("Enter a valid email","err");return;}
     setSavingEmail(true);
-    try{const u=await db.updateUser(user.id,{email:newEmail.trim()});setUserData(u||{...userData,email:newEmail.trim()});localStorage.setItem("nammacinema_user",JSON.stringify(u||userData));const np={...prefs,emailAlerts:true};setPrefs(np);savePrefs(np);showToast("Email saved ✓");setEditEmail(false);}
+    try{const u=await db.updateUser(user.id,{email:newEmail.trim()});setUserData(u||{...userData,email:newEmail.trim()});localStorage.setItem("streamx_user",JSON.stringify(u||userData));const np={...prefs,emailAlerts:true};setPrefs(np);savePrefs(np);showToast("Email saved ✓");setEditEmail(false);}
     catch(e){showToast("Failed","err");}
     setSavingEmail(false);
   }
 
-  function savePrefs(p){if(!user?.id)return;localStorage.setItem("nammacinema_prefs_"+user.id,JSON.stringify(p));}
+  function savePrefs(p){if(!user?.id)return;localStorage.setItem("streamx_prefs_"+user.id,JSON.stringify(p));}
 
   function togglePref(key){
     if(key==="emailAlerts"&&!prefs.emailAlerts&&!userData?.email){showToast("Add email first","err");setEditEmail(true);return;}
@@ -92,7 +98,7 @@ export default function Profile({onNavigate,user,onLogout,onUpgrade}){
   }
 
   function saveLang(code){
-    setAppLang(code);if(user?.id)localStorage.setItem("nammacinema_lang_"+user.id,code);
+    setAppLang(code);if(user?.id)localStorage.setItem("streamx_lang_"+user.id,code);
     db.updateUser(user.id,{language:code}).catch(()=>{});showToast("Language updated ✓");setShowLang(false);
   }
 
@@ -109,9 +115,9 @@ export default function Profile({onNavigate,user,onLogout,onUpgrade}){
         await supabase.from("users").delete().eq("id",user.id).catch(()=>{});
         await supabase.auth.signOut().catch(()=>{});
       }
-      localStorage.removeItem("nammacinema_user");
-      localStorage.removeItem("nammacinema_prefs_"+user?.id);
-      localStorage.removeItem("nammacinema_lang_"+user?.id);
+      localStorage.removeItem("streamx_user");
+      localStorage.removeItem("streamx_prefs_"+user?.id);
+      localStorage.removeItem("streamx_lang_"+user?.id);
       showToast("Account deleted. Goodbye 👋");
       setTimeout(()=>onLogout(),2000);
     }catch(e){showToast("Delete failed. Try again.","err");}
@@ -121,11 +127,11 @@ export default function Profile({onNavigate,user,onLogout,onUpgrade}){
   const plan=userData?.plan||"free";
   const planInfo={
     free:{name:"Free",color:"#555",price:"₹0",icon:"🆓"},
-    plan_mobile:{name:"Mobile",color:"#3b82f6",price:"₹99/mo",icon:"📱"},
-    plan_basic:{name:"Basic",color:"#8b5cf6",price:"₹149/mo",icon:"⭐"},
-    plan_premium:{name:"Premium",color:RED,price:"₹249/mo",icon:"👑"},
-    plan_annual:{name:"Annual",color:"#f59e0b",price:"₹2499/yr",icon:"🏆"},
-    premium:{name:"Premium",color:RED,price:"₹249/mo",icon:"👑"},
+    plan_mobile:{name:"Mobile",color:"#3b82f6",price:"₹149/mo",icon:"📱"},
+    plan_basic:{name:"Basic",color:"#8b5cf6",price:"₹299/mo",icon:"⭐"},
+    plan_premium:{name:"Premium",color:RED,price:"₹499/mo",icon:"👑"},
+    plan_annual:{name:"Annual",color:"#f59e0b",price:"₹999/yr",icon:"🏆"},
+    premium:{name:"Premium",color:RED,price:"₹499/mo",icon:"👑"},
   }[plan]||{name:"Free",color:"#555",price:"₹0",icon:"🆓"};
 
   const unread=notifs.filter(n=>!n.is_read).length;
@@ -190,7 +196,7 @@ export default function Profile({onNavigate,user,onLogout,onUpgrade}){
       <div style={{background:`linear-gradient(160deg,${planInfo.color}18,${BG} 55%)`,borderBottom:`1px solid ${BD}`}}>
         <div style={{display:"flex",alignItems:"center",gap:14,padding:"14px 20px 0"}}>
           <div style={{fontWeight:900,fontSize:22,letterSpacing:1,cursor:"pointer"}} onClick={()=>onNavigate("home")}>
-            <span style={{color:RED}}>STREAMX</span>
+            <span style={{color:RED}}>NAMMA</span><span style={{color:"#fff"}}> CINEMA</span>
           </div>
           <div style={{flex:1}}/>
           <button onClick={()=>onNavigate("home")} style={{background:"rgba(255,255,255,.06)",border:`1px solid ${BD}`,color:"#aaa",borderRadius:8,padding:"7px 14px",fontSize:12,cursor:"pointer"}}>← Home</button>
@@ -406,7 +412,8 @@ export default function Profile({onNavigate,user,onLogout,onUpgrade}){
               <div style={{fontSize:11,color:MT,fontWeight:700,textTransform:"uppercase",letterSpacing:.5,marginBottom:10}}>Support & Help</div>
               {/* ← AI CUSTOMER SUPPORT BUTTON */}
               <Row icon="🤖" label="AI Customer Support" sub="Chat with our AI — available 24/7" onClick={()=>setShowSupport(true)}/>
-              <Row icon="📧" label="Email Support" sub="support@nammacinema.in" onClick={()=>window.open("mailto:support@nammacinema.in")}/>
+              {installable&&<Row icon="📲" label="Install App" sub="Add StreamX to your home screen" onClick={async()=>{const ok=await promptInstall();if(ok)setInstallable(false);}}/>}
+              <Row icon="📧" label="Email Support" sub="support@streamx.in" onClick={()=>window.open("mailto:support@streamx.in")}/>
               <Row icon="📋" label="Terms of Use" onClick={()=>showToast("Coming soon")}/>
               <Row icon="🔒" label="Privacy Policy" onClick={()=>showToast("Coming soon")} last/>
             </Card>
@@ -414,7 +421,7 @@ export default function Profile({onNavigate,user,onLogout,onUpgrade}){
             {/* Account */}
             <Card>
               <div style={{fontSize:11,color:MT,fontWeight:700,textTransform:"uppercase",letterSpacing:.5,marginBottom:10}}>Account</div>
-              <Row icon="🚪" label="Sign Out" sub="Sign out from this device" onClick={()=>{localStorage.removeItem("nammacinema_user");onLogout();}}/>
+              <Row icon="🚪" label="Sign Out" sub="Sign out from this device" onClick={()=>{localStorage.removeItem("streamx_user");onLogout();}}/>
               <Row icon="🗑️" label="Delete Account" sub="Permanently delete your account" onClick={()=>setShowDelete(true)} danger last/>
             </Card>
 

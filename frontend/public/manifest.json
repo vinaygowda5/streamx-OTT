@@ -5,7 +5,7 @@
   "start_url": "/",
   "display": "standalone",
   "background_color": "#07070c",
-  "theme_color": "#e50914",
+  "theme_color": "#0EA5E9",
   "orientation": "portrait-primary",
   "icons": [
     {
@@ -55,15 +55,6 @@
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any maskable"
-    }
-  ],
-  "screenshots": [
-    {
-      "src": "/screenshots/home.png",
-      "sizes": "390x844",
-      "type": "image/png",
-      "form_factor": "narrow",
-      "label": "StreamX Home"
     }
   ],
   "categories": ["entertainment", "video"],
