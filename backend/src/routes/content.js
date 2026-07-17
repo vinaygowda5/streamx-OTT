@@ -1,7 +1,10 @@
 const router = require("express").Router();
 const c = require("../controllers/contentController");
+const { getUploadUrl } = require("../controllers/uploadController");
+const { requireAdmin } = require("../middleware/auth");
 router.get("/",          c.getAll);
 router.get("/search",    c.search);
 router.get("/trending",  c.getTrending);
+router.post("/upload-url", requireAdmin, getUploadUrl);
 router.get("/:id",       c.getById);
 module.exports = router;

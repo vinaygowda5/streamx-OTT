@@ -10,6 +10,23 @@ import { supabase, db } from "./supabase.js";
 const ADMIN_EMAILS = ["admin@nammacinema.in","vinaygowda12096909@gmail.com","admin@streamx.in"];
 const TEST_EMAIL   = "test@streamx.dev";
 const TEST_CODE    = "000000";
+const API = "https://streamx-ott-production.up.railway.app";
+
+// Saves the user locally AND fetches a backend JWT so Payment.jsx (and any
+// other backend-only route) actually has a valid token to send. Previously
+// nothing ever set streamx_token, so those routes always failed auth.
+async function establishSession(user){
+  localStorage.setItem("streamx_user", JSON.stringify(user));
+  if (user?.email === TEST_EMAIL) return; // dev test account has no real backend row
+  try{
+    const res = await fetch(`${API}/api/auth/session`, {
+      method:"POST", headers:{"Content-Type":"application/json"},
+      body: JSON.stringify({ email: user.email }),
+    });
+    const json = await res.json();
+    if (json.success && json.data?.token) localStorage.setItem("streamx_token", json.data.token);
+  }catch(e){ /* backend may be briefly down — user can still browse, payment will just prompt re-auth */ }
+}
 
 const PLAN_DEVICES = {
   free:1,plan_mobile:1,plan_basic:2,plan_premium:4,plan_annual:4,premium:4,
@@ -105,7 +122,7 @@ export default function Login({onLogin}){
         const ok=await checkDeviceLimit(user);
         if(!ok){setPendingUser(user);setStep("devices");setLoading(false);return;}
         await registerDevice(user);
-        localStorage.setItem("streamx_user",JSON.stringify(user));
+        establishSession(user);
         onLogin(user);setLoading(false);return;
       }
 
@@ -132,7 +149,7 @@ export default function Login({onLogin}){
         const ok=await checkDeviceLimit(user);
         if(!ok){setPendingUser(user);setStep("devices");setLoading(false);return;}
         await registerDevice(user);
-        localStorage.setItem("streamx_user",JSON.stringify(user));
+        establishSession(user);
         onLogin(user);
       } else {
         // New user — ask for phone
@@ -183,7 +200,7 @@ export default function Login({onLogin}){
       const allowed=await checkDeviceLimit(newUser);
       if(!allowed){setPendingUser(newUser);setStep("devices");setLoading(false);return;}
       await registerDevice(newUser);
-      localStorage.setItem("streamx_user",JSON.stringify(newUser));
+      establishSession(newUser);
       onLogin(newUser);
     }catch(e){
       setError("Account creation failed: "+e.message);
@@ -221,7 +238,7 @@ export default function Login({onLogin}){
       setActiveDevs(updated);
       if(pendingUser&&updated.length<(PLAN_DEVICES[pendingUser.plan]||1)){
         await registerDevice(pendingUser);
-        localStorage.setItem("streamx_user",JSON.stringify(pendingUser));
+        establishSession(pendingUser);
         onLogin(pendingUser);
       }
     }catch(e){setError("Failed to sign out.");}
@@ -231,7 +248,7 @@ export default function Login({onLogin}){
     try{
       await supabase.from("user_sessions").update({is_active:false}).eq("user_id",pendingUser.id);
       await registerDevice(pendingUser);
-      localStorage.setItem("streamx_user",JSON.stringify(pendingUser));
+      establishSession(pendingUser);
       onLogin(pendingUser);
     }catch(e){setError("Failed. Try again.");}
   }

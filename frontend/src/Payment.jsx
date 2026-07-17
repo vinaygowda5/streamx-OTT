@@ -1,7 +1,7 @@
 import { useState } from "react";
 
 /*
-  Namma Cinema — Real Razorpay Payment
+  StreamX — Real Razorpay Payment
   - All payment verification happens on BACKEND (secure)
   - Frontend only opens Razorpay popup, sends result to backend
   - Backend verifies signature and activates subscription
@@ -12,13 +12,13 @@ import { useState } from "react";
   - DO NOT put keys in this frontend file
 */
 
-const API = "YOUR_RAILWAY_BACKEND_URL_HERE"; // ← paste Railway URL
+const API = "https://streamx-ott-production.up.railway.app";
 
 const PLANS = [
   {
     id:       "plan_mobile",
     name:     "Mobile",
-    price:    149,
+    price:    99,
     period:   "month",
     screens:  1,
     quality:  "HD",
@@ -30,7 +30,7 @@ const PLANS = [
   {
     id:       "plan_basic",
     name:     "Basic",
-    price:    299,
+    price:    149,
     period:   "month",
     screens:  2,
     quality:  "FHD",
@@ -42,7 +42,7 @@ const PLANS = [
   {
     id:       "plan_premium",
     name:     "Premium",
-    price:    499,
+    price:    249,
     period:   "month",
     screens:  4,
     quality:  "4K HDR",
@@ -55,7 +55,7 @@ const PLANS = [
   {
     id:       "plan_annual",
     name:     "Annual",
-    price:    999,
+    price:    2499,
     period:   "year",
     screens:  4,
     quality:  "4K HDR",
@@ -97,7 +97,7 @@ export default function Payment({ user, onClose, onSuccess }) {
         key:         key_id,
         amount:      amount,
         currency:    "INR",
-        name:        "Namma Cinema",
+        name:        "StreamX",
         description: `${plan.name} Plan - ₹${plan.price}/${plan.period}`,
         order_id:    order_id,
         prefill: {
@@ -130,7 +130,7 @@ export default function Payment({ user, onClose, onSuccess }) {
             setLoading(false);
             onSuccess?.(plan.id);
           } catch(e) {
-            setError("Verification failed. Contact support@nammacinema.in");
+            setError("Verification failed. Contact support@streamx.in");
             setLoading(false);
           }
         },

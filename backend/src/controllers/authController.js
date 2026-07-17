@@ -21,9 +21,9 @@ async function sendOTP(req, res) {
 
   try {
     await resend.emails.send({
-      from: process.env.FROM_EMAIL || "noreply@nammacinema.in",
+      from: process.env.FROM_EMAIL || "noreply@streamx.in",
       to:   email,
-      subject: `${code} is your Namma Cinema verification code`,
+      subject: `${code} is your StreamX verification code`,
       html: `
         <div style="font-family:Arial,sans-serif;max-width:480px;margin:0 auto;padding:32px;background:#07070c;color:#fff;border-radius:12px;">
           <div style="font-size:28px;font-weight:900;margin-bottom:8px;">
@@ -70,7 +70,7 @@ async function verifyOTP(req, res) {
       }
     }
 
-    const ADMIN_EMAILS = (process.env.ADMIN_EMAILS || "admin@nammacinema.in").split(",");
+    const ADMIN_EMAILS = (process.env.ADMIN_EMAILS || "admin@streamx.in").split(",");
     const isAdmin = ADMIN_EMAILS.includes(clean);
 
     if (!user) {
@@ -92,12 +92,12 @@ async function verifyOTP(req, res) {
       // Welcome notification
       await sb.from("notifications").insert({
         user_id: user.id, type: "welcome",
-        title: "Welcome to Namma Cinema! 🎉",
+        title: "Welcome to StreamX! 🎉",
         message: "Start watching amazing content.",
       }).catch(() => {});
     }
 
-    if (!user.is_active) return err(res, "Account suspended. Contact support@nammacinema.in");
+    if (!user.is_active) return err(res, "Account suspended. Contact support@streamx.in");
 
     // Issue JWT
     const token = signToken({ id: user.id, email: user.email, role: user.role, plan: user.plan });
@@ -109,4 +109,24 @@ async function verifyOTP(req, res) {
   }
 }
 
-module.exports = { sendOTP, verifyOTP };
+// STEP 3 — Mint a backend JWT for an already Supabase-verified user.
+// (Login.jsx authenticates via Supabase Auth directly; this endpoint bridges
+// that to a StreamX JWT so backend-only routes like Payment/subscriptions work.)
+async function createSession(req, res) {
+  const { email } = req.body;
+  if (!email) return err(res, "Email required");
+  const clean = email.toLowerCase();
+  try {
+    const { data: user } = await sb.from("users").select("*").eq("email", clean).single();
+    if (!user) return err(res, "User not found", 404);
+    if (!user.is_active) return err(res, "Account suspended. Contact support@streamx.in");
+
+    const token = signToken({ id: user.id, email: user.email, role: user.role, plan: user.plan });
+    return ok(res, { token, user: { id:user.id, name:user.name, email:user.email, phone:user.phone, role:user.role, plan:user.plan, is_active:user.is_active } });
+  } catch(e) {
+    console.error("createSession error:", e);
+    return err(res, "Session creation failed: " + e.message, 500);
+  }
+}
+
+module.exports = { sendOTP, verifyOTP, createSession };

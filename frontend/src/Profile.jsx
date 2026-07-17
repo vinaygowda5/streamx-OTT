@@ -1,7 +1,8 @@
 import { useState, useEffect } from "react";
 import CustomerSupport from "./CustomerSupport.jsx";
 import { supabase, db } from "./supabase.js";
-import { promptInstall, canInstall } from "./pwa.js";
+import { promptInstall, canInstall, subscribeToPush } from "./pwa.js";
+const API = "https://streamx-ott-production.up.railway.app";
 
 const RED="#e50914",BG="#07070c",S1="#0f0f16",BD="#1a1a26",MT="#555";
 
@@ -127,11 +128,11 @@ export default function Profile({onNavigate,user,onLogout,onUpgrade}){
   const plan=userData?.plan||"free";
   const planInfo={
     free:{name:"Free",color:"#555",price:"₹0",icon:"🆓"},
-    plan_mobile:{name:"Mobile",color:"#3b82f6",price:"₹149/mo",icon:"📱"},
-    plan_basic:{name:"Basic",color:"#8b5cf6",price:"₹299/mo",icon:"⭐"},
-    plan_premium:{name:"Premium",color:RED,price:"₹499/mo",icon:"👑"},
-    plan_annual:{name:"Annual",color:"#f59e0b",price:"₹999/yr",icon:"🏆"},
-    premium:{name:"Premium",color:RED,price:"₹499/mo",icon:"👑"},
+    plan_mobile:{name:"Mobile",color:"#3b82f6",price:"₹99/mo",icon:"📱"},
+    plan_basic:{name:"Basic",color:"#8b5cf6",price:"₹149/mo",icon:"⭐"},
+    plan_premium:{name:"Premium",color:RED,price:"₹249/mo",icon:"👑"},
+    plan_annual:{name:"Annual",color:"#f59e0b",price:"₹2499/yr",icon:"🏆"},
+    premium:{name:"Premium",color:RED,price:"₹249/mo",icon:"👑"},
   }[plan]||{name:"Free",color:"#555",price:"₹0",icon:"🆓"};
 
   const unread=notifs.filter(n=>!n.is_read).length;
@@ -196,7 +197,7 @@ export default function Profile({onNavigate,user,onLogout,onUpgrade}){
       <div style={{background:`linear-gradient(160deg,${planInfo.color}18,${BG} 55%)`,borderBottom:`1px solid ${BD}`}}>
         <div style={{display:"flex",alignItems:"center",gap:14,padding:"14px 20px 0"}}>
           <div style={{fontWeight:900,fontSize:22,letterSpacing:1,cursor:"pointer"}} onClick={()=>onNavigate("home")}>
-            <span style={{color:RED}}>NAMMA</span><span style={{color:"#fff"}}> CINEMA</span>
+            <span style={{color:RED}}>STREAMX</span>
           </div>
           <div style={{flex:1}}/>
           <button onClick={()=>onNavigate("home")} style={{background:"rgba(255,255,255,.06)",border:`1px solid ${BD}`,color:"#aaa",borderRadius:8,padding:"7px 14px",fontSize:12,cursor:"pointer"}}>← Home</button>
@@ -413,6 +414,15 @@ export default function Profile({onNavigate,user,onLogout,onUpgrade}){
               {/* ← AI CUSTOMER SUPPORT BUTTON */}
               <Row icon="🤖" label="AI Customer Support" sub="Chat with our AI — available 24/7" onClick={()=>setShowSupport(true)}/>
               {installable&&<Row icon="📲" label="Install App" sub="Add StreamX to your home screen" onClick={async()=>{const ok=await promptInstall();if(ok)setInstallable(false);}}/>}
+              {"Notification" in window && Notification.permission!=="granted" && (
+                <Row icon="🔔" label="Enable Notifications" sub="Get notified about new releases" onClick={async()=>{
+                  const perm=await Notification.requestPermission();
+                  if(perm!=="granted"){showToast("Notifications blocked — enable in browser settings");return;}
+                  const token=localStorage.getItem("streamx_token");
+                  const ok=await subscribeToPush(API, token);
+                  showToast(ok?"Notifications enabled":"Could not enable notifications right now");
+                }}/>
+              )}
               <Row icon="📧" label="Email Support" sub="support@streamx.in" onClick={()=>window.open("mailto:support@streamx.in")}/>
               <Row icon="📋" label="Terms of Use" onClick={()=>showToast("Coming soon")}/>
               <Row icon="🔒" label="Privacy Policy" onClick={()=>showToast("Coming soon")} last/>
@@ -439,7 +449,7 @@ export default function Profile({onNavigate,user,onLogout,onUpgrade}){
               </Card>
             )}
 
-            <div style={{fontSize:11,color:"#1a1a26",textAlign:"center",marginTop:20}}>Namma Cinema v4.0 · Made with ❤️ in India</div>
+            <div style={{fontSize:11,color:"#1a1a26",textAlign:"center",marginTop:20}}>StreamX v4.0 · Made with ❤️ in India</div>
           </div>
         )}
       </div>

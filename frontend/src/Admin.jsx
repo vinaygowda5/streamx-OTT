@@ -4,7 +4,7 @@ import Hls from "hls.js";
 import FaceAuth from "./FaceAuth.jsx";
 
 /* ═══════════════════════════════════════════════════════════
-   STREAMX Admin Pro v5.0
+   StreamX Admin Pro v5.0
    ✅ 3GB+ video upload via Cloudflare R2 (presigned URL)
    ✅ Real bar charts & analytics (pure CSS/SVG — no library needed)
    ✅ Advanced UI/UX — dark glassmorphism design
@@ -16,10 +16,11 @@ import FaceAuth from "./FaceAuth.jsx";
 const R="#e50914", BL="#1565c0", GR="#00c853", AM="#f59e0b", PU="#8b5cf6";
 
 // ── Replace these with your Cloudflare R2 credentials ──
-const CF_ACCOUNT_ID   = "YOUR_CF_ACCOUNT_ID";   // Cloudflare → R2 → Account ID
-const CF_BUCKET_NAME  = "streamx-videos";         // Your R2 bucket name
-const CF_PUBLIC_URL   = "https://pub-YOUR_HASH.r2.dev"; // R2 bucket public URL
-const CF_API_TOKEN    = "YOUR_R2_API_TOKEN";      // R2 API token with write access
+// R2 credentials now live server-side only (Railway env vars: R2_ACCOUNT_ID,
+// R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY, R2_BUCKET_NAME, R2_PUBLIC_URL) —
+// see backend/src/controllers/uploadController.js. Nothing R2-related
+// belongs in this frontend file anymore, on purpose (avoids leaking a
+// write-capable API token to anyone who views this page's source).
 
 const CSS=`
 @import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Inter:wght@300;400;500;600;700;800;900&display=swap');
@@ -306,33 +307,40 @@ function StreamPreview({url,isLive=false}){
   );
 }
 
-// ── CLOUDFLARE R2 UPLOAD ──────────────────────────────────
+// ── CLOUDFLARE R2 UPLOAD (via backend-issued presigned URL) ──
+// The R2 secret key never touches this file — the backend signs a
+// short-lived (10 min) upload URL, and the browser PUTs the file straight
+// to R2. This removes Supabase Storage's ~50MB cap entirely.
+const API = "https://streamx-ott-production.up.railway.app";
+
 async function uploadToR2(file, onProgress) {
-  // Method 1: Direct upload via Cloudflare R2 API (needs worker or presigned URL)
-  // For simplicity, we use the Supabase storage as fallback + show R2 instructions
-  // To use R2: Set up a Cloudflare Worker that returns presigned URLs
+  const token = localStorage.getItem("streamx_token");
+  onProgress(2, "Requesting upload URL...");
 
-  const fileName = `${Date.now()}_${Math.random().toString(36).slice(2,8)}_${file.name.replace(/\s/g,"_")}`;
+  const signRes = await fetch(`${API}/api/content/upload-url`, {
+    method: "POST",
+    headers: { "Content-Type":"application/json", ...(token?{Authorization:`Bearer ${token}`}:{}) },
+    body: JSON.stringify({ filename: file.name, contentType: file.type }),
+  });
+  const signJson = await signRes.json();
+  if (!signJson.success) throw new Error(signJson.msg || "Could not get upload URL — is R2 configured on the backend?");
+  const { uploadUrl, publicUrl } = signJson.data;
 
-  try {
-    // Try Supabase first (up to 50MB on free, 5GB on pro)
-    onProgress(5, "Connecting to storage...");
-    const { error } = await supabase.storage.from("streamx-media").upload(
-      `videos/${fileName}`, file,
-      { cacheControl:"3600", upsert:false,
-        onUploadProgress: e => onProgress(Math.round((e.loaded/e.total)*90), `Uploading ${fM(e.loaded)} of ${fM(e.total)}...`) }
-    );
-    if (error) throw error;
-    const { data: ud } = supabase.storage.from("streamx-media").getPublicUrl(`videos/${fileName}`);
-    onProgress(100, "Upload complete!");
-    return { url: ud.publicUrl, provider: "supabase" };
-  } catch(supaErr) {
-    // If Supabase fails (size limit), guide user to R2
-    if (supaErr.message?.includes("size") || supaErr.message?.includes("exceeded")) {
-      throw new Error(`FILE_TOO_LARGE:${fM(file.size)}`);
-    }
-    throw supaErr;
-  }
+  onProgress(5, "Starting upload...");
+  await new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open("PUT", uploadUrl);
+    xhr.setRequestHeader("Content-Type", file.type || "application/octet-stream");
+    xhr.upload.onprogress = (e) => {
+      if (e.lengthComputable) onProgress(5 + Math.round((e.loaded/e.total)*93), `Uploading ${fM(e.loaded)} of ${fM(e.total)}...`);
+    };
+    xhr.onload = () => (xhr.status >= 200 && xhr.status < 300) ? resolve() : reject(new Error(`Upload failed (${xhr.status})`));
+    xhr.onerror = () => reject(new Error("Network error during upload"));
+    xhr.send(file);
+  });
+
+  onProgress(100, "Upload complete!");
+  return { url: publicUrl, provider: "r2" };
 }
 
 // ── CONTENT FORM ──────────────────────────────────────────
@@ -1182,7 +1190,7 @@ export default function Admin({onNavigate,user}){
 
   if(loading) return(
     <div style={{minHeight:"100vh",background:"#04040e",display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",gap:18,fontFamily:"Inter,sans-serif"}}>
-      <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:32,letterSpacing:3}}><span style={{color:R}}>STREAM</span><span style={{color:"#e2e2f0"}}>X</span></div>
+      <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:32,letterSpacing:3}}><span style={{color:R}}>STREAMX</span><span style={{color:"#e2e2f0"}}> ADMIN</span></div>
       <div style={{width:44,height:44,border:`3px solid #181828`,borderTop:`3px solid ${R}`,borderRadius:"50%",animation:"spin .8s linear infinite"}}/>
       <div style={{fontSize:13,color:"#3a3a5a"}}>Loading admin panel...</div>
       <style>{CSS}</style>
@@ -1202,7 +1210,7 @@ export default function Admin({onNavigate,user}){
         {/* Logo */}
         <div style={{padding:collapsed?"14px 12px":"14px 18px",borderBottom:"1px solid #181828",display:"flex",alignItems:"center",gap:12,cursor:"pointer",flexShrink:0}} onClick={()=>setCollapsed(o=>!o)}>
           <div style={{width:32,height:32,borderRadius:10,background:"linear-gradient(135deg,rgba(229,9,20,.3),rgba(229,9,20,.1))",border:"1px solid rgba(229,9,20,.3)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:16,flexShrink:0,animation:"glow 2s infinite"}}>⚡</div>
-          {!collapsed&&<div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:18,letterSpacing:2,whiteSpace:"nowrap"}}><span style={{color:R}}>STREAMX</span><span style={{fontSize:9,color:"#3a3a5a",marginLeft:8,fontFamily:"Inter",letterSpacing:0}}>ADMIN PRO</span></div>}
+          {!collapsed&&<div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:18,letterSpacing:2,whiteSpace:"nowrap"}}><span style={{color:R}}>STREAMX</span><span style={{color:"#e2e2f0"}}> ADMIN</span><span style={{fontSize:9,color:"#3a3a5a",marginLeft:8,fontFamily:"Inter",letterSpacing:0}}>ADMIN PRO</span></div>}
         </div>
 
         {/* Nav */}
@@ -1367,7 +1375,7 @@ export default function Admin({onNavigate,user}){
                   ["Database","Supabase PostgreSQL"],
                   ["Auth","Mobile OTP + Face ID"],
                   ["Video Storage","Cloudflare R2 + Supabase"],
-                  ["Version","STREAMX Admin Pro v5.0"],
+                  ["Version","StreamX Admin Pro v5.0"],
                   ["Realtime","✅ Active"],
                 ].map(([k,v])=>(
                   <div key={k} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"11px 0",borderBottom:"1px solid #181828",fontSize:13}}>
