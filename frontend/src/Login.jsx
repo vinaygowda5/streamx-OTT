@@ -2,12 +2,12 @@ import { useState, useEffect, useRef } from "react";
 import { supabase, db } from "./supabase.js";
 
 /*
-  Namma Cinema Login — Email OTP
+  Streamx Login — Email OTP
   Uses Supabase Auth directly (works without Railway backend)
   Switch to backend later when Railway is ready
 */
 
-const ADMIN_EMAILS = ["admin@nammacinema.in","vinaygowda12096909@gmail.com","admin@streamx.in"];
+const ADMIN_EMAILS = ["admin@cthestreamx.in","vinaygowda12096909@gmail.com","admin@streamx.in"];
 const TEST_EMAIL   = "test@streamx.dev";
 const TEST_CODE    = "000000";
 const API = "https://streamx-ott-production.up.railway.app";
@@ -145,7 +145,7 @@ export default function Login({onLogin}){
 
       if(user){
         // Existing user — welcome back
-        if(!user.is_active){setError("Account suspended. Contact support@nammacinema.in");setLoading(false);return;}
+        if(!user.is_active){setError("Account suspended. Contact support@streamx.in");setLoading(false);return;}
         const ok=await checkDeviceLimit(user);
         if(!ok){setPendingUser(user);setStep("devices");setLoading(false);return;}
         await registerDevice(user);
@@ -193,8 +193,8 @@ export default function Login({onLogin}){
 
       await supabase.from("notifications").insert({
         user_id:newUser.id,type:"welcome",
-        title:"Welcome to Namma Cinema! 🎬",
-        message:"ನಮ್ಮ ಸಿನಿಮಾಕ್ಕೆ ಸ್ವಾಗತ! Start watching now.",
+        title:"Welcome to Streamx! 🎬",
+        message:"Welcome to Streamx! Start watching now.",
       });
 
       const allowed=await checkDeviceLimit(newUser);
@@ -304,7 +304,7 @@ export default function Login({onLogin}){
             <input style={inp} value={email} onChange={e=>setEmail(e.target.value)} placeholder="your@email.com" type="email" autoFocus onKeyDown={e=>e.key==="Enter"&&canSend&&sendOTP()}/>
             {error&&<div style={{background:"rgba(248,113,113,.08)",border:"1px solid rgba(248,113,113,.2)",borderRadius:8,padding:"9px 12px",marginTop:10,color:"#f87171",fontSize:12}}>❌ {error}</div>}
             <button style={{...btn(canSend),marginTop:14}} onClick={sendOTP} disabled={!canSend}>{loading?"Sending code...":"Send OTP →"}</button>
-            <div style={{textAlign:"center",marginTop:16,fontSize:11,color:"#1a1a28",lineHeight:1.8}}>By continuing, you agree to Namma Cinema<br/>Terms of Use and Privacy Policy</div>
+            <div style={{textAlign:"center",marginTop:16,fontSize:11,color:"#1a1a28",lineHeight:1.8}}>By continuing, you agree to Streamx<br/>Terms of Use and Privacy Policy</div>
           </div>
         )}
 

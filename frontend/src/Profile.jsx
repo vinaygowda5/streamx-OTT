@@ -197,7 +197,7 @@ export default function Profile({onNavigate,user,onLogout,onUpgrade}){
       <div style={{background:`linear-gradient(160deg,${planInfo.color}18,${BG} 55%)`,borderBottom:`1px solid ${BD}`}}>
         <div style={{display:"flex",alignItems:"center",gap:14,padding:"14px 20px 0"}}>
           <div style={{fontWeight:900,fontSize:22,letterSpacing:1,cursor:"pointer"}} onClick={()=>onNavigate("home")}>
-            <span style={{color:RED}}>STREAMX</span>
+            <span style={{color:RED}}>STREAM</span><span style={{color:"#aaa"}}>X</span>
           </div>
           <div style={{flex:1}}/>
           <button onClick={()=>onNavigate("home")} style={{background:"rgba(255,255,255,.06)",border:`1px solid ${BD}`,color:"#aaa",borderRadius:8,padding:"7px 14px",fontSize:12,cursor:"pointer"}}>← Home</button>
