@@ -4,7 +4,7 @@
   Tracks: errors, page views, user actions — all sent to your backend
 */
 
-const API = "YOUR_RAILWAY_BACKEND_URL_HERE"; // ← paste Railway URL
+const API = "https://streamx-ott-production.up.railway.app";
 
 // ── Track page view ──
 export function trackPageView(page, user) {
