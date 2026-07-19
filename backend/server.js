@@ -44,11 +44,20 @@ app.get("/api/analytics/perf", (req, res) => {
 app.use(securityHeaders);
 app.use(ipGuard);
 app.use(cors({
-  origin: [
-    process.env.FRONTEND_URL || "https://streamx-ott.vercel.app",
-    "http://localhost:5173",
-    "http://localhost:3000",
-  ],
+  origin: (origin, callback) => {
+    const allowed = [
+      process.env.FRONTEND_URL || "https://streamx-ott.vercel.app",
+      "http://localhost:5173",
+      "http://localhost:3000",
+    ];
+    // Vercel generates a new random preview URL on every push (e.g.
+    // streamx-o9o9htpmq-vg-group.vercel.app) — allow any of those too,
+    // not just the fixed production domain, so testing previews doesn't
+    // get silently CORS-blocked.
+    const isVercelPreview = origin && /^https:\/\/streamx[a-z0-9-]*\.vercel\.app$/.test(origin);
+    if (!origin || allowed.includes(origin) || isVercelPreview) callback(null, true);
+    else callback(new Error("Not allowed by CORS"));
+  },
   credentials: true,
   methods: ["GET","POST","PUT","DELETE","OPTIONS"],
   allowedHeaders: ["Content-Type","Authorization"],
